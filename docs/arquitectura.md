@@ -168,3 +168,10 @@ Dueño total: Int.1 (modelo + ingest + vista). Int.2 no toca esta vista. Int.3 s
 - Chatbot crea `chat_sessions` y mantiene historial por sesión usando contexto página actual.
 - `/events` muestra solo eventos reales con link verificable, con `draft/published`. Sin eventos inventados.
 - Código Qdrant + Worker como stub/sugerencia sin romper V1 si backend no los usa.
+
+## 12. Workflow GitHub + test IA en terminal (repo NEXO-UNAC)
+Repo: https://github.com/CoreCodev618/NEXO-UNAC (público).
+Ramas: `main` (protegida, 1 approve, sin force) + `feature/backend-bd` + `feature/frontend-ux` + `feature/ia-chatbot`.
+Todo a `main` vía PR chico (<300 líneas) con template `.github/pull_request_template.md`. Anti-conflictos: cada uno solo toca sus carpetas (sección 8). Conflicto: `git fetch origin main && git rebase origin/main`.
+IA (tú) testeas sin front: `php spark serve` + `./scripts/test-ia.sh` (curl a `/api/v1/chat`, historial `chat_sessions`). Ver `docs/workflow-git.md`.
+Cloudflare Worker sugerido vive en `workers/` (dueño backend, libre).
