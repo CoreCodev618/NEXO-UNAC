@@ -71,7 +71,7 @@ Cumple mínimo 10 con diseño elegante por módulos. Sin tablas relleno.
 
 Organización (4):
 - `faculties`: id, name, short_code. Seed único: `FIIS`. Escalable a otras facus sin cambiar código.
-- `users`: id, email UNIQUE (validado dominio), name, faculty_id FK -> faculties, role alumno/docente/admin, password_hash, created_at
+- `users`: tabla de Shield + `name`, `faculty_id` FK -> faculties. Email y password en `auth_identities` (Shield); rol alumno/docente/admin = grupos Shield (`Config/AuthGroups.php`). Dominio validado con regla `institutional_email`.
 - `workspaces`: id, faculty_id FK, name, type (EP-Sistemas/EP-Industrial/club/tesis), owner_id FK, created_at. Seeds iniciales: EP Sistemas, EP Industrial, Club IA-FIIS.
 - `workspace_members`: id, workspace_id FK, user_id FK, role, UNIQUE(workspace_id,user_id)
 
