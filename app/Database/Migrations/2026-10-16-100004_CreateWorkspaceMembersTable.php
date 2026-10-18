@@ -42,8 +42,8 @@ class CreateWorkspaceMembersTable extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addUniqueKey(['workspace_id', 'user_id']);
         $this->forge->addKey('user_id');
-        $this->forge->addForeignKey('workspace_id', 'workspaces', 'id', false, 'CASCADE');
-        $this->forge->addForeignKey('user_id', 'users', 'id', false, 'CASCADE');
+        $this->forge->addForeignKey('workspace_id', 'workspaces', 'id', '', 'CASCADE');
+        $this->forge->addForeignKey('user_id', 'users', 'id', '', 'CASCADE');
 
         $this->forge->createTable('workspace_members', true);
     }

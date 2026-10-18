@@ -51,7 +51,7 @@ class CreateDocumentChunksTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey('document_id');
-        $this->forge->addForeignKey('document_id', 'documents', 'id', false, 'CASCADE');
+        $this->forge->addForeignKey('document_id', 'documents', 'id', '', 'CASCADE');
 
         $this->forge->createTable('document_chunks', true);
     }

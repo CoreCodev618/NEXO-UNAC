@@ -74,9 +74,9 @@ class CreateTasksTable extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addKey('workspace_id');
         $this->forge->addKey('status');
-        $this->forge->addForeignKey('workspace_id', 'workspaces', 'id', false, 'CASCADE');
-        $this->forge->addForeignKey('page_id', 'pages', 'id', false, 'SET NULL');
-        $this->forge->addForeignKey('assigned_to', 'users', 'id', false, 'SET NULL');
+        $this->forge->addForeignKey('workspace_id', 'workspaces', 'id', '', 'CASCADE');
+        $this->forge->addForeignKey('page_id', 'pages', 'id', '', 'SET NULL');
+        $this->forge->addForeignKey('assigned_to', 'users', 'id', '', 'SET NULL');
 
         $this->forge->createTable('tasks', true);
     }

@@ -26,8 +26,8 @@ class CreatePageTagsTable extends Migration
 
         $this->forge->addPrimaryKey(['page_id', 'tag_id']);
         $this->forge->addKey('tag_id');
-        $this->forge->addForeignKey('page_id', 'pages', 'id', false, 'CASCADE');
-        $this->forge->addForeignKey('tag_id', 'tags', 'id', false, 'CASCADE');
+        $this->forge->addForeignKey('page_id', 'pages', 'id', '', 'CASCADE');
+        $this->forge->addForeignKey('tag_id', 'tags', 'id', '', 'CASCADE');
 
         $this->forge->createTable('page_tags', true);
     }

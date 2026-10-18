@@ -44,7 +44,7 @@ class CreateChatMessagesTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey('session_id');
-        $this->forge->addForeignKey('session_id', 'chat_sessions', 'id', false, 'CASCADE');
+        $this->forge->addForeignKey('session_id', 'chat_sessions', 'id', '', 'CASCADE');
 
         $this->forge->createTable('chat_messages', true);
     }

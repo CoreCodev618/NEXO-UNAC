@@ -43,8 +43,8 @@ class CreateEventInterestsTable extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addUniqueKey(['event_id', 'user_id']);
         $this->forge->addKey('user_id');
-        $this->forge->addForeignKey('event_id', 'events', 'id', false, 'CASCADE');
-        $this->forge->addForeignKey('user_id', 'users', 'id', false, 'CASCADE');
+        $this->forge->addForeignKey('event_id', 'events', 'id', '', 'CASCADE');
+        $this->forge->addForeignKey('user_id', 'users', 'id', '', 'CASCADE');
 
         $this->forge->createTable('event_interests', true);
     }

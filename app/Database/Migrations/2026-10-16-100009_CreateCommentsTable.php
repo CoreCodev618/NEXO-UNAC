@@ -39,8 +39,8 @@ class CreateCommentsTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey('page_id');
-        $this->forge->addForeignKey('page_id', 'pages', 'id', false, 'CASCADE');
-        $this->forge->addForeignKey('user_id', 'users', 'id', false, 'SET NULL');
+        $this->forge->addForeignKey('page_id', 'pages', 'id', '', 'CASCADE');
+        $this->forge->addForeignKey('user_id', 'users', 'id', '', 'SET NULL');
 
         $this->forge->createTable('comments', true);
     }

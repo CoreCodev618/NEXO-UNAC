@@ -71,9 +71,9 @@ class CreatePagesTable extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addKey('workspace_id');
         $this->forge->addKey('parent_id');
-        $this->forge->addForeignKey('workspace_id', 'workspaces', 'id', false, 'CASCADE');
-        $this->forge->addForeignKey('parent_id', 'pages', 'id', false, 'CASCADE');
-        $this->forge->addForeignKey('created_by', 'users', 'id', false, 'SET NULL');
+        $this->forge->addForeignKey('workspace_id', 'workspaces', 'id', '', 'CASCADE');
+        $this->forge->addForeignKey('parent_id', 'pages', 'id', '', 'CASCADE');
+        $this->forge->addForeignKey('created_by', 'users', 'id', '', 'SET NULL');
 
         $this->forge->createTable('pages', true);
     }

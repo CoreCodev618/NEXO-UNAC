@@ -42,8 +42,8 @@ class CreateChatSessionsTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey('user_id');
-        $this->forge->addForeignKey('user_id', 'users', 'id', false, 'CASCADE');
-        $this->forge->addForeignKey('page_id', 'pages', 'id', false, 'SET NULL');
+        $this->forge->addForeignKey('user_id', 'users', 'id', '', 'CASCADE');
+        $this->forge->addForeignKey('page_id', 'pages', 'id', '', 'SET NULL');
 
         $this->forge->createTable('chat_sessions', true);
     }

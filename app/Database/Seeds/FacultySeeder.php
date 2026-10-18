@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Database\Seeders;
+namespace App\Database\Seeds;
 
 use CodeIgniter\Database\Seeder;
 

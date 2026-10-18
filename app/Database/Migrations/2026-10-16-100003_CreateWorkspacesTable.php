@@ -56,8 +56,8 @@ class CreateWorkspacesTable extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addKey('faculty_id');
         $this->forge->addKey('owner_id');
-        $this->forge->addForeignKey('faculty_id', 'faculties', 'id', false, 'SET NULL');
-        $this->forge->addForeignKey('owner_id', 'users', 'id', false, 'SET NULL');
+        $this->forge->addForeignKey('faculty_id', 'faculties', 'id', '', 'SET NULL');
+        $this->forge->addForeignKey('owner_id', 'users', 'id', '', 'SET NULL');
 
         $this->forge->createTable('workspaces', true);
     }

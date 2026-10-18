@@ -51,7 +51,7 @@ class CreateBlocksTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey('page_id');
-        $this->forge->addForeignKey('page_id', 'pages', 'id', false, 'CASCADE');
+        $this->forge->addForeignKey('page_id', 'pages', 'id', '', 'CASCADE');
 
         $this->forge->createTable('blocks', true);
     }

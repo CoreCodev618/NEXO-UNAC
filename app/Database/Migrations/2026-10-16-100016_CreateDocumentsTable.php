@@ -48,7 +48,7 @@ class CreateDocumentsTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey('page_id');
-        $this->forge->addForeignKey('page_id', 'pages', 'id', false, 'SET NULL');
+        $this->forge->addForeignKey('page_id', 'pages', 'id', '', 'SET NULL');
 
         $this->forge->createTable('documents', true);
     }

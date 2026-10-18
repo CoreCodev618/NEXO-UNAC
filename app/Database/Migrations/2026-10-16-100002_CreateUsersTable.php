@@ -60,7 +60,7 @@ class CreateUsersTable extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addUniqueKey('email');
         $this->forge->addKey('faculty_id');
-        $this->forge->addForeignKey('faculty_id', 'faculties', 'id', false, 'SET NULL');
+        $this->forge->addForeignKey('faculty_id', 'faculties', 'id', '', 'SET NULL');
 
         $this->forge->createTable('users', true);
     }

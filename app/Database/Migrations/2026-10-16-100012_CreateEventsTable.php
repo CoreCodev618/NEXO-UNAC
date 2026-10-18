@@ -95,7 +95,7 @@ class CreateEventsTable extends Migration
         // Dedupe en ingest: una sola fila por link_original.
         $this->forge->addUniqueKey('link_original');
         $this->forge->addKey(['event_date', 'status']);
-        $this->forge->addForeignKey('created_by', 'users', 'id', false, 'SET NULL');
+        $this->forge->addForeignKey('created_by', 'users', 'id', '', 'SET NULL');
 
         $this->forge->createTable('events', true);
     }
