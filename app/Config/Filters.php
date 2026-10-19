@@ -2,6 +2,8 @@
 
 namespace Config;
 
+use App\Filters\ApiAuthFilter;
+use App\Filters\ApiKeyFilter;
 use CodeIgniter\Config\Filters as BaseFilters;
 use CodeIgniter\Filters\Cors;
 use CodeIgniter\Filters\CSRF;
@@ -34,6 +36,8 @@ class Filters extends BaseFilters
         'forcehttps'    => ForceHTTPS::class,
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
+        'apiauth'       => ApiAuthFilter::class,
+        'apikey'        => ApiKeyFilter::class,
     ];
 
     /**
@@ -72,9 +76,7 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
-            // 'honeypot',
-            // 'csrf',
-            // 'invalidchars',
+            'csrf' => ['except' => ['api/v1/events/ingest']],
         ],
         'after' => [
             // 'honeypot',

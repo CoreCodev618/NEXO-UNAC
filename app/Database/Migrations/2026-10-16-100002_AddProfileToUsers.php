@@ -31,10 +31,15 @@ class AddProfileToUsers extends Migration
             ],
         ]);
 
-        $this->db->query(
-            'ALTER TABLE users ADD CONSTRAINT users_faculty_id_foreign'
-            . ' FOREIGN KEY (faculty_id) REFERENCES faculties(id) ON DELETE SET NULL'
+        $this->forge->addForeignKey(
+            'faculty_id',
+            'faculties',
+            'id',
+            '',
+            'SET NULL',
+            'users_faculty_id_foreign',
         );
+        $this->forge->processIndexes('users');
     }
 
     public function down(): void
