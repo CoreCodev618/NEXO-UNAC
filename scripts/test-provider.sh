@@ -44,10 +44,10 @@ PY
 
 TMP="$(mktemp)"
 echo "== provider: groq | modelo: $MODEL =="
-read -r CODE TIME < <(curl -sS -o "$TMP" -w '%{http_code} %{time_total}' "$API" \
+read -r CODE TIME < <(curl -sS -o "$TMP" -w '%{http_code} %{time_total}\n' "$API" \
   -H "Authorization: Bearer $GROQ_API_KEY" \
   -H "Content-Type: application/json" \
-  -d "$PAYLOAD")
+  -d "$PAYLOAD") || { echo "ERROR: no se pudo consultar la API (revisa conexion)"; rm -f "$TMP"; exit 1; }
 
 if [ "$CODE" != "200" ]; then
   echo "FALLO HTTP $CODE (revisa key, limite o modelo)"
