@@ -19,7 +19,7 @@ tests verdes antes de commitear. Ramas de trabajo salen de
 | F3 | API workspaces + miembros con control de acceso | ⬜ | |
 | F4.1 | API pages + blocks | ⬜ | |
 | F4.2 | API tags + comments | ⬜ | |
-| F4.3 | API attachments con validación de archivo | ⬜ | |
+| F4.3 | API attachments con validación de archivo — whitelist `pdf, docx, pptx, jpg, png, zip` (`.rar` → 422, issue #5) | ⬜ | |
 | F5 | API tasks + move Kanban | ⬜ | |
 | F6.1 | Event service + API admin | ⬜ | |
 | F6.2 | Ingest con API key, dedupe y rate limit | ⬜ | |
@@ -67,3 +67,6 @@ php spark migrate:refresh --all      # rehacer BD dev (borra datos)
 | Rate limit | 429 | | |
 
 La fuente única del contrato completo será `docs/endpoints.md` (desde F8.1).
+
+El 400 de JSON malformado lo emite `app/Filters/JsonPayloadFilter.php` (alias
+`jsonpayload`, aplicado al grupo `api/v1` y a ingest), así usa el mismo envelope.
