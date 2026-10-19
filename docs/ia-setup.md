@@ -21,7 +21,7 @@ qdrant-down    # apagar cuando no se use
 | Variable | Default | Uso |
 |---|---|---|
 | `GROQ_API_KEY` | — | provider free del chatbot |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | modelo (fallback: `llama-3.1-8b-instant`) |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | modelo (fallback: `openai/gpt-oss-20b`) |
 | `QDRANT_URL` | `http://localhost:6333` | vector DB |
 | `EMBED_DIM` | `768` | dimension del embedding de la coleccion |
 
@@ -31,7 +31,7 @@ qdrant-down    # apagar cuando no se use
 ./scripts/test-provider.sh
 
 # 2. comparar modelo rapido (menos alucinacion-control, mas velocidad)
-GROQ_MODEL=llama-3.1-8b-instant ./scripts/test-provider.sh
+GROQ_MODEL=openai/gpt-oss-20b ./scripts/test-provider.sh
 
 # 3. coleccion vectorial lista (idempotente, se puede repetir)
 ./scripts/qdrant-init.sh
@@ -64,7 +64,8 @@ Cambiar de embedding (o de dim) = borrar coleccion en Qdrant y re-ingestar. Mari
 | `Qdrant no responde` | contenedor apagado | `qdrant-up` |
 | `docker.sock no existe` | daemon apagado | `dockerd-up` |
 | HTTP 401 Groq | key invalida | revisar `GROQ_API_KEY` |
-| HTTP 429 Groq | rate limit free | esperar o `GROQ_MODEL=llama-3.1-8b-instant` |
+| HTTP 429 Groq | rate limit free | esperar o `GROQ_MODEL=openai/gpt-oss-20b` |
+| HTTP 404 model_not_found | modelo retirado | listar con `curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"` |
 
 ## Roadmap
 Ver `docs/ProgresoIA.md`.

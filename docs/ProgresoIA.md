@@ -19,7 +19,7 @@ Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
 | IA-7 | (Opcional) resumen IA de eventos para Tech Radar | ⬜ | |
 
 ## Decisiones cerradas
-- **Proveedor free por defecto:** Groq `llama-3.3-70b-versatile` (fallback `llama-3.1-8b-instant`). Cambiable por `.env` via factory (DeepSeek u otro OpenAI-compatible sin tocar el controller).
+- **Proveedor free por defecto:** Groq `openai/gpt-oss-120b` (fallback `openai/gpt-oss-20b`). Cambiable por `.env` via factory (DeepSeek u otro OpenAI-compatible sin tocar el controller). Nota: la familia `llama-3.x` ya no esta disponible en Groq; los disponibles son `gpt-oss-120b/20b` y `qwen3.8-27b`.
 - **Embeddings:** Gemini `text-embedding-004` (768) por defecto; alternativa local MiniLM (384).
 - **RAG es nucleo del producto** (no "V2 opcional"): MySQL = texto + metadata (fuente de verdad), Qdrant = vectores. Caso de uso: diario de clases FIIS (foto/PDF por fecha y tema, consultable por lenguaje natural).
 - **Anti-alucinacion:** temperature 0.2, contexto acotado (<4k tokens), cita obligatoria o "no puedo confirmar".

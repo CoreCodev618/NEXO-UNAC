@@ -2,7 +2,7 @@
 # IA-0: prueba el proveedor LLM free (Groq) desde terminal, sin CI4.
 # Uso:
 #   ./scripts/test-provider.sh
-#   GROQ_MODEL=llama-3.1-8b-instant ./scripts/test-provider.sh   # comparar modelo rapido
+#   GROQ_MODEL=openai/gpt-oss-20b ./scripts/test-provider.sh   # comparar modelo rapido
 # Requiere: GROQ_API_KEY en el entorno o en .env del repo.
 set -euo pipefail
 
@@ -13,7 +13,7 @@ if [ -z "${GROQ_API_KEY:-}" ] && [ -f "$ROOT/.env" ]; then
 fi
 : "${GROQ_API_KEY:?Falta GROQ_API_KEY: exportala o ponla en .env}"
 
-MODEL="${GROQ_MODEL:-llama-3.3-70b-versatile}"
+MODEL="${GROQ_MODEL:-openai/gpt-oss-120b}"
 API="https://api.groq.com/openai/v1/chat/completions"
 
 SYSTEM_PROMPT="Eres el tutor academico de NEXO UNAC (FIIS - Universidad Nacional del Callao).
