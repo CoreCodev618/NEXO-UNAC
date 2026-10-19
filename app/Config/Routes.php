@@ -18,11 +18,13 @@ service('auth')->routes($routes);
 // API v1
 
 // Ingest de eventos: llega de fuera del navegador, valida X-API-KEY y va sin CSRF.
-$routes->post('api/v1/events/ingest', 'Api\V1\EventIngestController::store', ['filter' => 'apikey']);
+$routes->post('api/v1/events/ingest', 'Api\V1\EventIngestController::store', [
+    'filter' => ['apikey', 'jsonpayload'],
+]);
 
 $routes->group('api/v1', [
     'namespace' => 'App\Controllers\Api\V1',
-    'filter'    => 'apiauth',
+    'filter'    => ['apiauth', 'jsonpayload'],
 ], static function (RouteCollection $routes): void {
     $routes->get('me', 'MeController::show');
 
