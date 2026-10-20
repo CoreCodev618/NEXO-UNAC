@@ -3,7 +3,7 @@
 Estado del modulo IA/RAG por fases. Un PR pequeno por hito, probado en terminal antes de abrir PR.
 Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
 
-> Ultima actualizacion: 2026-10-19 · Rama: `feature/ia-chatbot`
+> Ultima actualizacion: 2026-10-20 · Rama: `feature/ia-chatbot`
 
 ## Fases
 
@@ -12,7 +12,7 @@ Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
 | IA-0 | Provider free (Groq) + runbook + bootstrap Qdrant | ✅ mergeado (PR #2) | `scripts/test-provider.sh`, `scripts/qdrant-init.sh`, `docs/ia-setup.md` |
 | IA-1 | Contrato `AIServiceInterface` + factory por `.env` | ⬜ (espera CI4 en `main`) | |
 | IA-2 | Prompts diario de clases (resumen, por fecha/tema, sin contexto -> "no puedo confirmar") | ⬜ | |
-| IA-3 | Extraccion docx/pptx/pdf + OCR fotos + codigo/zip | ✅ (en PR) | `python/` (`extract.py` + `nexo/`) |
+| IA-3 | Extraccion docx/pptx/pdf + OCR fotos + codigo/zip | ✅ mergeado (PR #6) | `python/` (`extract.py` + `nexo/`) |
 | IA-4 | Chunking 500 tokens con metadata curso/fecha/tema + embeddings | ⬜ | |
 | IA-5 | Ingest a Qdrant + retrieval filtrado top-5 | ⬜ | |
 | IA-6 | `/api/v1/chat` con `chat_sessions` + citas a material original | ⬜ | |
