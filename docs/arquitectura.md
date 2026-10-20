@@ -82,6 +82,7 @@ Conocimiento estilo Notion (6):
 - `page_tags`: page_id FK, tag_id FK, PK compuesta. Para buscador y filtro.
 - `comments`: id, page_id FK, user_id FK, content TEXT, created_at. Colaboración.
 - `attachments`: id, page_id FK, user_id FK, file_path, file_type, file_size, created_at. Reemplaza Drive disperso.
+- **Formatos permitidos al subir material**: PDF, DOCX, PPTX, JPG/PNG, ZIP. Cualquier otro (ej. `.rar`) se rechaza con mensaje claro; validación real server-side (F4.3) y el frontend muestra el error de la API. El `.zip` se acepta y el pipeline IA lo descomprime internamente (límite de tamaño/nº de archivos, sin ejecutar contenido).
 
 Productividad + Tech Radar (3 V1):
 - `tasks`: id, workspace_id FK, page_id NULL, title, status (todo/doing/done), priority, due_date, assigned_to FK
