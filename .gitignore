@@ -17,6 +17,7 @@ Thumbs.db
 .idea/
 .vscode/
 # IA local
-python/__pycache__/
+__pycache__/
+*.pyc
 python/.venv/
 qdrant_storage/
