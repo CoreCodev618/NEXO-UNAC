@@ -30,6 +30,8 @@ def _preview(text: str, limit: int = 170) -> str:
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
+    if len(a) != len(b):
+        raise ValueError(f"Vectores de distinta dimension: {len(a)} != {len(b)}")
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = math.sqrt(sum(x * x for x in a))
     norm_b = math.sqrt(sum(y * y for y in b))
@@ -53,7 +55,12 @@ def _record(chunk: chunking.Chunk, vector: list[float] | None = None) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description="IA-4: chunking + embeddings para RAG")
     parser.add_argument("targets", nargs="+", help="archivos, carpetas o .zip")
-    parser.add_argument("--doc-id", type=int, default=1, help="doc_id inicial (se incrementa por fuente)")
+    parser.add_argument(
+        "--doc-id",
+        type=int,
+        default=None,
+        help="doc_id inicial secuencial (default: hash estable de la ruta)",
+    )
     parser.add_argument("--curso-id", type=int, default=1)
     parser.add_argument("--class-date", default="")
     parser.add_argument("--topic", default="")
@@ -70,7 +77,7 @@ def main() -> int:
 
     all_chunks: list[chunking.Chunk] = []
     warnings: list[str] = []
-    next_doc_id = args.doc_id
+    next_doc_id = args.doc_id or 0
     sources_by_target: list[tuple[str, int, int]] = []
 
     for target in args.targets:
@@ -89,6 +96,7 @@ def main() -> int:
         chunks = chunking.chunk_extraction(
             extraction.items,
             doc_id_start=next_doc_id,
+            stable_ids=args.doc_id is None,
             curso_id=args.curso_id,
             class_date=args.class_date,
             topic=args.topic,

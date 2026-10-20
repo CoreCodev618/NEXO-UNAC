@@ -1,10 +1,12 @@
 """Chunking para RAG (IA-4).
 
-Divide el texto ya extraido en trozos de ~500 tokens con solape, conservando
-la ubicacion (pagina / slide / archivo) para poder citar la fuente despues.
+Divide el texto ya extraido en trozos de <= 500 tokens con 50 de solape,
+cortando por oracion, y conserva la ubicacion (pagina / slide / archivo)
+para poder citar la fuente despues.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 
@@ -51,9 +53,18 @@ class Chunk:
         return f"{self.doc_id}-{self.chunk_index}"
 
 
+def stable_doc_id(source: str) -> int:
+    """doc_id estable (63 bits) derivado de la ruta/fuente."""
+    return int(hashlib.sha256(source.encode("utf-8")).hexdigest()[:15], 16)
+
+
 def _string_windows(text: str, max_chars: int, overlap_chars: int) -> list[str]:
     step = max(1, max_chars - overlap_chars)
-    return [text[i : i + max_chars].strip() for i in range(0, len(text), step) if text[i : i + max_chars].strip()]
+    return [
+        text[i : i + max_chars].strip()
+        for i in range(0, len(text), step)
+        if text[i : i + max_chars].strip()
+    ]
 
 
 def _token_windows(text: str, max_tokens: int, overlap_tokens: int) -> list[str]:
@@ -65,15 +76,30 @@ def _token_windows(text: str, max_tokens: int, overlap_tokens: int) -> list[str]
     total = len(ids)
     windows: list[str] = []
     start = 0
+
     while start < total:
         end = min(start + max_tokens, total)
-        part = enc.decode(ids[start:end]).strip()
-        if part:
+        # Sin .strip(): quitar el espacio inicial cambia la tokenizacion y
+        # puede dejar el chunk en max_tokens + 1.
+        part = enc.decode(ids[start:end])
+        if part.strip():
             windows.append(part)
         if end >= total:
             break
-        start = end - overlap_tokens
+        start = max(start + 1, end - overlap_tokens)  # guarda anti-bucle
+
     return windows
+
+
+def _emit(chunks: list[str], text: str, max_tokens: int, overlap_tokens: int) -> None:
+    """Agrega un chunk garantizando <= max_tokens (lo reparte si hace falta)."""
+    text = text.strip()
+    if not text:
+        return
+    if count_tokens(text) <= max_tokens:
+        chunks.append(text)
+        return
+    chunks.extend(_token_windows(text, max_tokens, overlap_tokens))
 
 
 def split_text(
@@ -106,7 +132,7 @@ def split_text(
     def flush() -> None:
         nonlocal current, current_tokens
         if current:
-            chunks.append(" ".join(s for s, _ in current).strip())
+            _emit(chunks, " ".join(s for s, _ in current), max_tokens, overlap_tokens)
             current = []
             current_tokens = 0
 
@@ -117,7 +143,7 @@ def split_text(
             continue
 
         if current and current_tokens + len(tokens) > max_tokens:
-            chunks.append(" ".join(s for s, _ in current).strip())
+            _emit(chunks, " ".join(s for s, _ in current), max_tokens, overlap_tokens)
             # solape: conservar las ultimas oraciones que quepan en overlap_tokens
             keep: list[tuple[str, list[int]]] = []
             keep_tokens = 0
@@ -134,13 +160,14 @@ def split_text(
         current_tokens += len(tokens)
 
     flush()
-    return [c for c in chunks if c]
+    return [chunk for chunk in chunks if chunk]
 
 
 def chunk_extraction(
     items,
     *,
     doc_id_start: int = 1,
+    stable_ids: bool = False,
     curso_id: int = 1,
     class_date: str = "",
     topic: str = "",
@@ -151,7 +178,7 @@ def chunk_extraction(
     chunks: list[Chunk] = []
 
     for offset, item in enumerate(items):
-        doc_id = doc_id_start + offset
+        doc_id = stable_doc_id(item.source) if stable_ids else doc_id_start + offset
         chunk_index = 0
 
         for unit in item.units:

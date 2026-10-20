@@ -60,25 +60,32 @@ python/.venv/bin/python python/extract.py "../samples/SEMANA 6.zip" --out /tmp/o
 Resultados de la prueba: docx 24K chars · pptx 41 unidades · OCR 2 fotos (formulas a mano -> LaTeX) · codigo 68 archivos (182K chars) · zip igual que la carpeta.
 
 ## Chunking + embeddings (IA-4, `python/`)
-Divide el texto extraido en chunks de ~500 tokens (solape 50, corte por oracion) con metadata
+Divide el texto extraido en chunks de **<=500 tokens** (solape 50, corte por oracion) con metadata
 `curso_id, class_date, topic, file_path, location`, y calcula el vector de 768 dims por chunk.
+Cada fuente recibe un `doc_id` estable por hash de su ruta; `--doc-id N` fuerza IDs secuenciales
+(util cuando MySQL ya asigno el `documents.id` en IA-5).
 
 ```bash
 cd ~/Documents/NEXO-UNAC/ia
 python/.venv/bin/python python/chunk.py "../samples"          # solo chunking (rapido)
 python/.venv/bin/python python/chunk.py "../samples/Semana 7 Programación entera.pptx" \
     --embed --query "¿Qué es programación entera?" --out /tmp/opencode/ia4-out
+
+# tests de chunking (sin gastar cuota)
+python/.venv/bin/python -m unittest discover -s python/tests -v
 ```
 
-Resultados (2026-10-20): silabo 14 chunks · PPT 45 · 2 fotos 2 · carpeta `ci42` 126.
+Resultados (2026-10-20): silabo 15 chunks · PPT 46 · 2 fotos 2 · carpeta `ci42` 146 (max 500 tokens).
 Retrieval de prueba: "¿Cómo se resuelve por compuertas NAND?" -> foto pt2 (0.757) y pt1 (0.677);
 "¿Cómo se define una ruta en CodeIgniter 4?" -> `app/Config/Routes.php` (0.756).
 
 Cache local en `.cache/` (gitignored): evita repetir OCR/embeddings y cuida la cuota free.
+La `GEMINI_API_KEY` viaja en el header `x-goog-api-key` (nunca en la URL ni en logs).
 
 ## Coleccion `nexo_docs`
 - Vector: `size=EMBED_DIM`, `distance=Cosine`.
-- Payload por chunk (metadata): `chunk_id, doc_id, page_id, curso_id` (integer) + `class_date, topic` (keyword) + `file_path`.
+- Los embeddings de Gemini no vienen normalizados: usar `Cosine`, no `Dot`.
+- Payload por chunk (metadata): `doc_id, chunk_index, curso_id` (integer) + `class_date, topic, location, file_path` (keyword). `page_id` numerico se agrega en IA-5 cuando MySQL asigne el documento.
 - Dedupe de ingesta: `doc_id + chunk_index`.
 
 ## Embedding
