@@ -4,7 +4,7 @@ Estado del desarrollo backend por fases. Un commit por subfase, siempre con
 tests verdes antes de commitear. Ramas de trabajo salen de
 `feature/backend-bd`; `main` solo recibe merge aprobado.
 
-> Última actualización: 2026-10-18 · Rama: `backend/f0-entorno`
+> Última actualización: 2026-10-18 · Rama: `backend/fase1`
 
 ## Fases
 
@@ -13,13 +13,13 @@ tests verdes antes de commitear. Ramas de trabajo salen de
 | F0.1 | Rebase sobre `main` | ✅ | — (sin commit propio) |
 | F0.2 | Entorno de tests en MariaDB + FK de `users` sin SQL crudo | ✅ | `1f7a220` |
 | F0.3 | Config base: urls limpias, CSRF global, filtros `apiauth`/`apikey` | ✅ | `d6c0ee6` |
-| F1 | Base API v1 (`BaseApiController`, rutas agrupadas, `/me`) | ⬜ | |
+| F1 | Base API v1 (`BaseApiController`, rutas agrupadas, `/me`) | ✅ | `1e1f19e` |
 | F2.1 | Models organización/conocimiento (9 modelos) | ⬜ | |
 | F2.2 | Models productividad/eventos/IA (7 modelos) | ⬜ | |
 | F3 | API workspaces + miembros con control de acceso | ⬜ | |
 | F4.1 | API pages + blocks | ⬜ | |
 | F4.2 | API tags + comments | ⬜ | |
-| F4.3 | API attachments con validación de archivo | ⬜ | |
+| F4.3 | API attachments con validación de archivo — whitelist `pdf, docx, pptx, jpg, png, zip` (`.rar` → 422, issue #5) | ⬜ | |
 | F5 | API tasks + move Kanban | ⬜ | |
 | F6.1 | Event service + API admin | ⬜ | |
 | F6.2 | Ingest con API key, dedupe y rate limit | ⬜ | |
@@ -38,7 +38,7 @@ tests verdes antes de commitear. Ramas de trabajo salen de
 | C2 | 17 migraciones corren sin error | ✅ (`migrate:refresh --all` verificado) |
 | C3 | Workspace → página anidada → bloques + tags + comentario persiste | ⬜ F3/F4 |
 | C4 | Mover tarea Kanban persiste `status` y `order_index` | ⬜ F5 |
-| C5 | Ruta `/api/v1/chat` lista para el chatbot | ⬜ F1 |
+| C5 | Ruta `/api/v1/chat` lista para el chatbot | ✅ (ruta registrada y protegida con `apiauth`; responde 404 hasta existir su controlador) |
 | C6 | `/events` muestra solo eventos reales con fuente verificable | ⬜ F6/F7 |
 | C7 | Ingest deduplica por `link_original` y exige API key | ⬜ F6.2 |
 | C8 | Sin tocar archivos de otros módulos (auditable por rama) | ✅ |
@@ -67,3 +67,6 @@ php spark migrate:refresh --all      # rehacer BD dev (borra datos)
 | Rate limit | 429 | | |
 
 La fuente única del contrato completo será `docs/endpoints.md` (desde F8.1).
+
+El 400 de JSON malformado lo emite `app/Filters/JsonPayloadFilter.php` (alias
+`jsonpayload`, aplicado al grupo `api/v1` y a ingest), así usa el mismo envelope.

@@ -4,6 +4,7 @@ namespace Config;
 
 use App\Filters\ApiAuthFilter;
 use App\Filters\ApiKeyFilter;
+use App\Filters\JsonPayloadFilter;
 use CodeIgniter\Config\Filters as BaseFilters;
 use CodeIgniter\Filters\Cors;
 use CodeIgniter\Filters\CSRF;
@@ -14,6 +15,7 @@ use CodeIgniter\Filters\InvalidChars;
 use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
+use CodeIgniter\Shield\Filters\SessionAuth;
 
 class Filters extends BaseFilters
 {
@@ -38,6 +40,12 @@ class Filters extends BaseFilters
         'performance'   => PerformanceMetrics::class,
         'apiauth'       => ApiAuthFilter::class,
         'apikey'        => ApiKeyFilter::class,
+        'jsonpayload'   => JsonPayloadFilter::class,
+
+        // Alias de la ruta /events. Shield ya lo aporta por su Registrar
+        // (auto-descubrimiento de paquetes); se declara aquí para que el
+        // comportamiento no dependa de ese descubrimiento.
+        'session'       => SessionAuth::class,
     ];
 
     /**
