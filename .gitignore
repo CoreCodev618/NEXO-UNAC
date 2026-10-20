@@ -20,4 +20,6 @@ Thumbs.db
 __pycache__/
 *.pyc
 python/.venv/
+python/out/
+.cache/
 qdrant_storage/
