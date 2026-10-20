@@ -54,7 +54,7 @@ class Chunk:
 
 
 def stable_doc_id(source: str) -> int:
-    """doc_id estable (63 bits) derivado de la ruta/fuente."""
+    """doc_id estable (60 bits, 15 hex) derivado de la etiqueta de fuente."""
     return int(hashlib.sha256(source.encode("utf-8")).hexdigest()[:15], 16)
 
 
@@ -79,11 +79,15 @@ def _token_windows(text: str, max_tokens: int, overlap_tokens: int) -> list[str]
 
     while start < total:
         end = min(start + max_tokens, total)
-        # Sin .strip(): quitar el espacio inicial cambia la tokenizacion y
-        # puede dejar el chunk en max_tokens + 1.
         part = enc.decode(ids[start:end])
-        if part.strip():
-            windows.append(part)
+        cleaned = part.strip()
+        # Limpiar el espacio inicial cambia la tokenizacion (+1 token); si
+        # pasa, recortamos la ventana hasta volver a cumplir el maximo.
+        while cleaned and count_tokens(cleaned) > max_tokens and end > start + 1:
+            end -= 1
+            cleaned = enc.decode(ids[start:end]).strip()
+        if cleaned:
+            windows.append(cleaned)
         if end >= total:
             break
         start = max(start + 1, end - overlap_tokens)  # guarda anti-bucle

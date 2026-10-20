@@ -44,16 +44,16 @@ class SplitTextTest(unittest.TestCase):
         texto = " ".join(f"oracion numero {i} con contenido." for i in range(200))
         chunks = chunking.split_text(texto, max_tokens=60, overlap_tokens=15)
         self.assertGreater(len(chunks), 2)
-        self.assertTrue(
-            any(chunks[i].split()[-1] in chunks[i + 1] for i in range(len(chunks) - 1))
-        )
+        for actual, siguiente in zip(chunks, chunks[1:]):
+            cola = " ".join(actual.split()[-3:])
+            self.assertIn(cola, siguiente)
 
 
 class StableDocIdTest(unittest.TestCase):
     def test_es_estable_y_distingue_fuentes(self):
         self.assertEqual(chunking.stable_doc_id("a.docx"), chunking.stable_doc_id("a.docx"))
         self.assertNotEqual(chunking.stable_doc_id("a.docx"), chunking.stable_doc_id("b.docx"))
-        self.assertLess(chunking.stable_doc_id("a.docx"), 2**63)
+        self.assertLess(chunking.stable_doc_id("a.docx"), 2**60)
 
 
 class ChunkExtractionTest(unittest.TestCase):
@@ -86,6 +86,7 @@ class ChunkExtractionTest(unittest.TestCase):
         items = [self._Item("a.docx", "docx", [self._Unit("Frase de prueba. " * 800)])]
         chunks = chunking.chunk_extraction(items, max_tokens=100, overlap_tokens=10)
         self.assertTrue(all(chunk.tokens <= 100 for chunk in chunks))
+        self.assertTrue(all(chunk.text == chunk.text.strip() for chunk in chunks))
 
 
 if __name__ == "__main__":

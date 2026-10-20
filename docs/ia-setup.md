@@ -62,8 +62,8 @@ Resultados de la prueba: docx 24K chars · pptx 41 unidades · OCR 2 fotos (form
 ## Chunking + embeddings (IA-4, `python/`)
 Divide el texto extraido en chunks de **<=500 tokens** (solape 50, corte por oracion) con metadata
 `curso_id, class_date, topic, file_path, location`, y calcula el vector de 768 dims por chunk.
-Cada fuente recibe un `doc_id` estable por hash de su ruta; `--doc-id N` fuerza IDs secuenciales
-(util cuando MySQL ya asigno el `documents.id` en IA-5).
+Cada fuente recibe un `doc_id` estable por hash de su etiqueta de fuente; en produccion pasar
+`--doc-id N` con el `documents.id` de MySQL (IA-5).
 
 ```bash
 cd ~/Documents/NEXO-UNAC/ia

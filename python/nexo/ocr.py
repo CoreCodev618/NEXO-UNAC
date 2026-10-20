@@ -116,8 +116,8 @@ def ocr_image(path: Path, model: str | None = None) -> str:
             except requests.RequestException as exc:
                 # No incluir exc: su texto puede contener la URL de la peticion.
                 errors.append(f"{candidate}: {type(exc).__name__} (red/timeout)")
-                time.sleep(2 * (attempt + 1))
-                continue
+                time.sleep(2)
+                break  # red/timeout -> probar el siguiente modelo (no repetir 90s)
 
             if response.status_code == 200:
                 body = response.json()
@@ -136,4 +136,4 @@ def ocr_image(path: Path, model: str | None = None) -> str:
                 continue
             break  # 404 / 400 -> probar el siguiente modelo
 
-    raise RuntimeError("Gemini OCR fallo: " + " | ".join(errors[-4:]))
+    raise RuntimeError("Gemini OCR fallo: " + " | ".join(errors[-6:]))
