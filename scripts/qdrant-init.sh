@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # IA-0: crea la coleccion nexo_docs en Qdrant local (idempotente).
 # Uso: ./scripts/qdrant-init.sh
-# EMBED_DIM: 768 = Gemini text-embedding-004 (default) | 384 = MiniLM local
+# EMBED_DIM: 768 = Gemini gemini-embedding-001 (default) | 384 = MiniLM local
 set -euo pipefail
 
 QDRANT_URL="${QDRANT_URL:-http://localhost:6333}"
