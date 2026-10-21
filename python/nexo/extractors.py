@@ -53,6 +53,10 @@ class Extracted:
     source: str
     kind: str
     units: list[Unit] = field(default_factory=list)
+    # Identidad canonica (ruta relativa al proyecto) para detectar colisiones.
+    source_key: str = ""
+    # documents.id de MySQL cuando el ingest recibe --doc-id/--doc-id-map.
+    doc_id: int | None = None
 
     @property
     def chars(self) -> int:
