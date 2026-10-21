@@ -3,7 +3,7 @@
 Estado del modulo IA/RAG por fases. Un PR pequeno por hito, probado en terminal antes de abrir PR.
 Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
 
-> Ultima actualizacion: 2026-10-20 · Rama: `feature/ia-chatbot`
+> Ultima actualizacion: 2026-10-21 · Rama: `feature/ia-chatbot`
 
 ## Fases
 
@@ -13,8 +13,8 @@ Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
 | IA-1 | Contrato `AIServiceInterface` + factory por `.env` | ⬜ (espera CI4 en `main`) | |
 | IA-2 | Prompts diario de clases (resumen, por fecha/tema, sin contexto -> "no puedo confirmar") | ⬜ | |
 | IA-3 | Extraccion docx/pptx/pdf + OCR fotos + codigo/zip | ✅ mergeado (PR #6) | `python/` (`extract.py` + `nexo/`) |
-| IA-4 | Chunking 500 tokens con metadata curso/fecha/tema + embeddings | ✅ (en PR) | `python/nexo/chunking.py`, `embeddings.py`, `python/chunk.py` |
-| IA-5 | Ingest a Qdrant + retrieval filtrado top-5 | ⬜ | |
+| IA-4 | Chunking 500 tokens con metadata curso/fecha/tema + embeddings | ✅ mergeado (PR #7) | `python/nexo/chunking.py`, `embeddings.py`, `python/chunk.py` |
+| IA-5 | Ingest a Qdrant + retrieval filtrado top-5 | ✅ (en PR) | `python/ingest.py`, `python/retrieve.py`, `python/nexo/vectorstore.py`, `python/tests/test_vectorstore.py` |
 | IA-6 | `/api/v1/chat` con `chat_sessions` + citas a material original | ⬜ | |
 | IA-7 | (Opcional) resumen IA de eventos para Tech Radar | ⬜ | |
 
@@ -26,6 +26,7 @@ Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
 - **Seguridad:** la `GEMINI_API_KEY` viaja en el header `x-goog-api-key` (nunca en la URL) y no se incluye en los mensajes de error.
 - **Qdrant:** los vectores de Gemini no vienen normalizados -> coleccion con `distance=Cosine`.
 - **RAG es nucleo del producto** (no "V2 opcional"): MySQL = texto + metadata (fuente de verdad), Qdrant = vectores. Caso de uso: diario de clases FIIS (foto/PDF por fecha y tema, consultable por lenguaje natural).
+- **Point ID Qdrant (IA-5):** `uuid5(NAMESPACE_URL, "nexo:{doc_id}:{chunk_index}")` -> reingestar el mismo material actualiza (idempotente) en vez de duplicar; el dedupe previo es por `(doc_id, chunk_index)`. El payload lleva `chunk_id` **entero** (indice del chunk, porque el indice Qdrant es integer), `chunk_key` string `"doc_id-chunk_index"` para trazabilidad, `doc_id/page_id/curso_id` integer, `class_date/topic` keyword y el texto del chunk para retrieval/demo (MySQL sigue siendo la fuente de verdad).
 - **Anti-alucinacion:** temperature 0.2, contexto acotado (<4k tokens), cita obligatoria o "no puedo confirmar".
 
 ## Contratos con otros modulos
@@ -48,4 +49,11 @@ python/.venv/bin/python python/extract.py "../samples/SEMANA6/ci42" --preview 0
 python/.venv/bin/python python/chunk.py "../samples/Semana 7 Programación entera.pptx" \
     --embed --query "¿Qué es programación entera?"
 python/.venv/bin/python -m unittest discover -s python/tests -v
+
+# IA-5: ingest a Qdrant (idempotente) + retrieval top-5 con filtros
+python/.venv/bin/python python/ingest.py "../samples/SILABUS  Programacion Web II 2026B.docx" \
+    "../samples/SEMANA6/ci42" --curso-id 2 --class-date 2026-10-20 --topic "Programación Web II"
+python/.venv/bin/python python/retrieve.py "¿Cómo se resuelve por compuertas NAND?" --top 5
+python/.venv/bin/python python/retrieve.py "¿Cómo se define una ruta en CodeIgniter 4?" \
+    --curso-id 2 --json
 ```

@@ -82,11 +82,68 @@ Retrieval de prueba: "¿Cómo se resuelve por compuertas NAND?" -> foto pt2 (0.7
 Cache local en `.cache/` (gitignored): evita repetir OCR/embeddings y cuida la cuota free.
 La `GEMINI_API_KEY` viaja en el header `x-goog-api-key` (nunca en la URL ni en logs).
 
+## Ingest + retrieval (IA-5, `python/`)
+`ingest.py` extrae, chunkea (con `doc_id` estable o `--doc-id` de MySQL), dedupe por
+`(doc_id, chunk_index)`, asegura la coleccion/indices, calcula embeddings (cache) y hace
+upsert por lotes. Es **idempotente**: el id de punto es
+`uuid5(NAMESPACE_URL, "nexo:{doc_id}:{chunk_index}")`, asi que repetir el ingest actualiza
+los mismos puntos y `count()` no crece.
+
+```bash
+cd ~/Documents/NEXO-UNAC/ia
+
+# grupo A: silabo + carpeta de codigo (curso 2)
+python/.venv/bin/python python/ingest.py \
+    "../samples/SILABUS  Programacion Web II 2026B.docx" "../samples/SEMANA6/ci42" \
+    --curso-id 2 --class-date 2026-10-20 --topic "Programación Web II"
+
+# grupo B: PPT (curso 3) y grupo C: fotos OCR (curso 4)
+python/.venv/bin/python python/ingest.py "../samples/Semana 7 Programación entera.pptx" \
+    --curso-id 3 --class-date 2026-10-20 --topic "Investigación de Operaciones"
+python/.venv/bin/python python/ingest.py \
+    "../samples/Resolucion PC1 Sistemas Digitales pt1.jpeg" \
+    "../samples/Resolucion PC1 Sistemas Digitales pt2.jpeg" \
+    --curso-id 4 --class-date 2026-10-19 --topic "Sistemas Digitales"
+
+# plan sin embeddings ni escritura
+python/.venv/bin/python python/ingest.py "../samples" --dry-run
+
+# retrieval top-5, filtros opcionales y salida JSON
+python/.venv/bin/python python/retrieve.py "¿Cómo se resuelve por compuertas NAND?"
+python/.venv/bin/python python/retrieve.py "¿Qué es la programación entera?" \
+    --topic "Investigación de Operaciones" --top 3
+python/.venv/bin/python python/retrieve.py "¿Cómo se define una ruta en CodeIgniter 4?" \
+    --curso-id 2 --json
+```
+
+Resultado de la prueba (2026-10-21): 161 + 46 + 2 = **209 puntos**; reingestar el grupo A
+dejo `count()` en 209. "NAND" sin filtro -> fotos 0.757/0.677; con `--class-date 2026-10-19`
+solo fotos; con `2026-10-20` no aparecen. "Ruta en CodeIgniter 4" + `--curso-id 2` -> top-1
+`app/Config/Routes.php` (0.756); con `--curso-id 4` no aparece.
+
+### Payload y filtros
+| Campo | Tipo Qdrant | Uso |
+|---|---|---|
+| `chunk_id` | integer | indice del chunk dentro del documento (NO es el id global) |
+| `doc_id` | integer | `documents.id` de MySQL (`--doc-id`) o hash estable de la fuente |
+| `page_id` | integer | 0 por ahora; pagina/slide real cuando MySQL lo asigne |
+| `curso_id` | integer | filtro por curso |
+| `class_date` | keyword | filtro por fecha `YYYY-MM-DD` |
+| `topic` | keyword | filtro por tema |
+| `file_path`, `source`, `location`, `kind` | keyword/texto | cita de la fuente |
+| `text` | texto | retrieval/demo; la fuente de verdad sigue en MySQL |
+| `tokens`, `chunk_key` | integer/keyword | diagnostico y trazabilidad `"doc_id-chunk_index"` |
+
+`build_filter()` usa `match.value` en `must`: `curso_id`, `doc_id` (integer) y
+`class_date`, `topic` (keyword). Sin filtros devuelve `None` (busqueda global).
+`--min-score > 0` se traduce a `score_threshold`.
+
 ## Coleccion `nexo_docs`
 - Vector: `size=EMBED_DIM`, `distance=Cosine`.
 - Los embeddings de Gemini no vienen normalizados: usar `Cosine`, no `Dot`.
-- Payload por chunk (metadata): `doc_id, chunk_index, curso_id` (integer) + `class_date, topic, location, file_path` (keyword). `page_id` numerico se agrega en IA-5 cuando MySQL asigne el documento.
-- Dedupe de ingesta: `doc_id + chunk_index`.
+- Indices de payload: `chunk_id, doc_id, page_id, curso_id` (integer) y
+  `class_date, topic` (keyword); `ensure_payload_indexes()` es idempotente.
+- Dedupe de ingesta: `doc_id + chunk_index` (ademas del UUID5 determinista del punto).
 
 ## Embedding
 | Opcion | Dim | Costo | Nota |
@@ -105,7 +162,10 @@ Cambiar de embedding (o de dim) = borrar coleccion en Qdrant y re-ingestar. Mari
 ## Troubleshooting
 | Sintoma | Causa | Fix |
 |---|---|---|
-| `Qdrant no responde` | contenedor apagado | `qdrant-up` |
+| `Qdrant no responde` | contenedor apagado | `qdrant-up`; `ingest.py`/`retrieve.py` muestran la URL y el comando |
+| `size=... y se esperaba ...` | `EMBED_DIM` distinto al de la coleccion | volver al `EMBED_DIM` original o usar otra `--collection` (no borrar `nexo_docs`) |
+| `distance=... y se esperaba Cosine` | coleccion creada con otra metrica | recrear en otra coleccion con `Cosine` y reingestar |
+| `count()` no sube tras reingestar | idempotencia UUID5 (esperado) | verificar `points_count` en `/collections/nexo_docs` |
 | `docker.sock no existe` | daemon apagado | `dockerd-up` |
 | HTTP 401 Groq | key invalida | revisar `GROQ_API_KEY` |
 | HTTP 429 Groq | rate limit free | esperar o `GROQ_MODEL=openai/gpt-oss-20b` |
