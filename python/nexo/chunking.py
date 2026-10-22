@@ -47,6 +47,7 @@ class Chunk:
     location: str
     tokens: int
     metadata: dict = field(default_factory=dict)
+    source_key: str = ""
 
     @property
     def chunk_id(self) -> str:
@@ -182,7 +183,14 @@ def chunk_extraction(
     chunks: list[Chunk] = []
 
     for offset, item in enumerate(items):
-        doc_id = stable_doc_id(item.source) if stable_ids else doc_id_start + offset
+        explicit_doc_id = getattr(item, "doc_id", None)
+        if explicit_doc_id is not None:
+            doc_id = int(explicit_doc_id)
+        elif stable_ids:
+            doc_id = stable_doc_id(item.source)
+        else:
+            doc_id = doc_id_start + offset
+        source_key = getattr(item, "source_key", "") or item.source
         chunk_index = 0
 
         for unit in item.units:
@@ -195,6 +203,7 @@ def chunk_extraction(
                     "topic": topic,
                     "file_path": item.source,
                     "source": item.source,
+                    "source_key": source_key,
                     "location": unit.location,
                     "kind": item.kind,
                 }
@@ -208,6 +217,7 @@ def chunk_extraction(
                         location=unit.location,
                         tokens=count_tokens(part),
                         metadata=metadata,
+                        source_key=source_key,
                     )
                 )
                 chunk_index += 1
