@@ -69,7 +69,6 @@ class Filters extends BaseFilters
         'after' => [
             'pagecache',   // Web Page Caching
             'performance', // Performance Metrics
-            'toolbar',     // Debug Toolbar
         ],
     ];
 
@@ -87,6 +86,9 @@ class Filters extends BaseFilters
             'csrf' => ['except' => ['api/v1/events/ingest']],
         ],
         'after' => [
+            // La barra de depuración consulta Shield/Settings y, por tanto, la
+            // base de datos. Las rutas de previsualización funcionan sin MariaDB.
+            'toolbar' => ['except' => ['preview', 'preview/*']],
             // 'honeypot',
             // 'secureheaders',
         ],

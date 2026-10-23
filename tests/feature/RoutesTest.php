@@ -40,9 +40,11 @@ final class RoutesTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testEventosWebRedirigeAlLoginSinSesion(): void
+    public function testEventosNoSePublicaSinControlador(): void
     {
-        $this->get('events')->assertRedirectTo('login');
+        // El módulo Radar pertenece al backend; la ruta solo existe cuando su
+        // controlador está instalado. Sin él, la URL debe ser un 404 honesto.
+        $this->get('events')->assertStatus(404);
     }
 
     /**
@@ -78,9 +80,9 @@ final class RoutesTest extends CIUnitTestCase
             ->assertStatus(401);
     }
 
-    public function testRaizResponde200(): void
+    public function testRaizRedirigeAlLoginSinSesion(): void
     {
-        $this->get('/')->assertStatus(200);
+        $this->get('/')->assertRedirectTo('login');
     }
 
     public function testLoginDeShieldResponde200(): void

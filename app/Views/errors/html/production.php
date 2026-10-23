@@ -1,25 +1,12 @@
-<!doctype html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="robots" content="noindex">
+<?php
+/**
+ * Error de producción con la identidad de NEXO. No expone detalles internos.
+ */
+$errorCode = 'Error del servidor';
+$errorTitle = 'Algo se atascó en la biblioteca.';
+$errorText = 'No pudimos completar la solicitud. Tus datos siguen a salvo; inténtalo de nuevo en unos instantes.';
+$errorArt = 'book';
+$errorSecondaryMode = 'reload';
+$errorSecondaryLabel = 'Intentar de nuevo';
 
-    <title><?= lang('Errors.whoops') ?></title>
-
-    <style>
-        <?= preg_replace('#[\r\n\t ]+#', ' ', file_get_contents(__DIR__ . DIRECTORY_SEPARATOR . 'debug.css')) ?>
-    </style>
-</head>
-<body>
-
-    <div class="container text-center">
-
-        <h1 class="headline"><?= lang('Errors.whoops') ?></h1>
-
-        <p class="lead"><?= lang('Errors.weHitASnag') ?></p>
-
-    </div>
-
-</body>
-
-</html>
+require __DIR__ . '/_nexo_error.php';
