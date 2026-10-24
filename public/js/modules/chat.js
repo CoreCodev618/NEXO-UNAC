@@ -75,13 +75,13 @@ function appendUserMessage(text) {
 function appendFallback() {
   const element = appendMessage(
     'assistant',
-    'El tutor todavía no está conectado. No voy a inventar una respuesta ni citar fuentes que no existen.',
+    'El tutor no está conectado en este entorno. No voy a inventar una respuesta ni citar fuentes que no existen.',
   );
 
   const main = qs('.nx-msg__main', element);
   const note = document.createElement('div');
   note.className = 'nx-msg__note';
-  note.innerHTML = `${icon('info')}<span>El endpoint <code>POST /api/v1/chat</code> aún no está implementado en este entorno. Tus páginas y el buscador siguen funcionando.</span>`;
+  note.innerHTML = `${icon('info')}<span>El servicio del tutor no está disponible ahora. Tus páginas y el buscador siguen funcionando.</span>`;
   main?.appendChild(note);
   scrollToEnd();
 }
