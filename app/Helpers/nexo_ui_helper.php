@@ -152,7 +152,9 @@ if (! function_exists('nexo_date')) {
         $diff  = (int) $today->diff($day)->format('%r%a');
 
         if ($style === 'long') {
-            return $value->format('j \d\e F \d\e Y');
+            $months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+            return $value->format('j') . ' de ' . $months[(int) $value->format('n') - 1] . ' de ' . $value->format('Y');
         }
 
         if ($diff === 0) {

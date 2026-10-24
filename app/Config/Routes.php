@@ -34,9 +34,12 @@ $routes->group('', ['filter' => 'session'], static function (RouteCollection $ro
  * Rutas de previsualización.
  *
  * Existen solo en desarrollo/pruebas para revisar la interfaz sin depender de
- * MariaDB ni de Shield. En producción no se registran.
+ * MariaDB ni de Shield. En producción no se registran y, además, pueden
+ * desactivarse con NEXO_PREVIEW=false (útil en staging).
  */
-if (ENVIRONMENT !== 'production') {
+$previewEnabled = filter_var(env('NEXO_PREVIEW', ENVIRONMENT === 'development'), FILTER_VALIDATE_BOOLEAN);
+
+if (ENVIRONMENT !== 'production' && $previewEnabled) {
     $routes->get('preview', 'Web\DashboardController::index');
     $routes->get('preview/dashboard', 'Web\DashboardController::index');
     $routes->get('preview/workspaces', 'Web\WorkspaceController::index');
@@ -55,9 +58,13 @@ if (ENVIRONMENT !== 'production') {
 // API v1
 
 // Ingest de eventos: llega de fuera del navegador, valida X-API-KEY y va sin CSRF.
-$routes->post('api/v1/events/ingest', 'Api\V1\EventIngestController::store', [
-    'filter' => ['apikey', 'jsonpayload'],
-]);
+// El controlador pertenece a la fase de eventos del backend; no se publica la
+// ruta mientras no exista para no devolver un 500 "Controller not found".
+if (class_exists(\App\Controllers\Api\V1\EventIngestController::class)) {
+    $routes->post('api/v1/events/ingest', 'Api\V1\EventIngestController::store', [
+        'filter' => ['apikey', 'jsonpayload'],
+    ]);
+}
 
 $routes->group('api/v1', [
     'namespace' => 'App\Controllers\Api\V1',
@@ -67,6 +74,9 @@ $routes->group('api/v1', [
 
     // Recursos (workspaces, pages, blocks, tasks, events) se agregan en cada fase.
 
-    // Contrato reservado del chat: responde 404 hasta que su controlador exista.
-    $routes->post('chat', 'AIChatController::send');
+    // Contrato reservado del chat: se publica cuando el controlador de la fase
+    // IA exista; mientras tanto la ruta no se registra.
+    if (class_exists(\App\Controllers\Api\V1\AIChatController::class)) {
+        $routes->post('chat', 'AIChatController::send');
+    }
 });

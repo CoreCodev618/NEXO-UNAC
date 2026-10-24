@@ -52,6 +52,22 @@ $error     = session('error');
         <?= csrf_field() ?>
 
         <div class="nx-field">
+            <label class="nx-label" for="name">Nombre completo</label>
+            <input
+                class="nx-input nx-input--lg"
+                id="name"
+                name="name"
+                type="text"
+                autocomplete="name"
+                placeholder="Sebastián Rabanal"
+                value="<?= esc(old('name') ?? '') ?>"
+                maxlength="150"
+                required
+                autofocus
+            >
+        </div>
+
+        <div class="nx-field">
             <label class="nx-label" for="username">
                 Nombre de usuario
                 <span class="nx-label__hint">Así te verá tu equipo</span>
@@ -67,7 +83,6 @@ $error     = session('error');
                 minlength="3"
                 maxlength="30"
                 required
-                autofocus
             >
         </div>
 
@@ -84,7 +99,7 @@ $error     = session('error');
                 value="<?= esc(old('email') ?? '') ?>"
                 required
             >
-            <span class="nx-hint">Si aún no tienes correo UNAC, puedes usar uno personal.</span>
+            <span class="nx-hint">Debes registrarte con tu correo @unac.edu.pe.</span>
         </div>
 
         <div class="nx-field">

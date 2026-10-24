@@ -639,10 +639,12 @@ final class FrontendDemo
         $open   = array_values(array_filter($tasks, static fn (array $task): bool => $task['status'] !== 'done'));
 
         usort($open, static function (array $a, array $b): int {
-            $aDue = $a['due_date'] ?? '9999-12-31';
-            $bDue = $b['due_date'] ?? '9999-12-31';
+            $weight = ['alta' => 0, 'media' => 1, 'baja' => 2];
+            $aDue   = $a['due_date'] ?? '9999-12-31';
+            $bDue   = $b['due_date'] ?? '9999-12-31';
 
-            return strcmp($aDue, $bDue) ?: ((int) $a['priority'] <=> (int) $b['priority']);
+            return strcmp($aDue, $bDue)
+                ?: (($weight[$a['priority']] ?? 3) <=> ($weight[$b['priority']] ?? 3));
         });
 
         $workspaces = self::workspaces();
