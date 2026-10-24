@@ -86,34 +86,30 @@ export const api = {
 
   blocks: {
     async savePage(pageId, { title, blocks, deletedIds = [] }) {
-      await request(`/pages/${pageId}`, { method: 'PUT', body: { title } });
-
-      const results = [];
-
-      for (const block of blocks) {
-        const body = {
-          page_id: Number(pageId),
+      const payload = {
+        title,
+        blocks: blocks.map((block, index) => ({
+          id: /^\d+$/.test(String(block.id)) ? Number(block.id) : null,
+          client_id: String(block.id ?? `new-${index}`),
           type: block.type,
           content: block.content,
-          order_index: block.order_index,
-        };
+          order_index: Number(block.order_index ?? index),
+        })),
+        deleted_ids: deletedIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0),
+      };
 
-        if (!block.id || String(block.id).startsWith('new-')) {
-          const created = await request('/blocks', { method: 'POST', body });
-          results.push({ tempId: block.id, data: created });
-        } else {
-          const updated = await request(`/blocks/${block.id}`, { method: 'PUT', body });
-          results.push({ id: block.id, data: updated });
-        }
+      const response = await request(`/pages/${pageId}`, { method: 'PUT', body: payload });
+
+      if (!Array.isArray(response?.blocks)) {
+        throw new ApiError('El servidor no devolvió los bloques guardados.', 500, response);
       }
 
-      for (const id of deletedIds) {
-        if (id && !String(id).startsWith('new-')) {
-          await request(`/blocks/${id}`, { method: 'DELETE' });
-        }
-      }
-
-      return results;
+      return response.blocks.map((block) => ({
+        tempId: block.client_id,
+        data: { id: block.id },
+      }));
     },
   },
 
@@ -172,6 +168,55 @@ export const api = {
             reject(
               new ApiError(
                 payload?.message || `No se pudo subir el archivo (${xhr.status}).`,
+                xhr.status,
+                payload,
+              ),
+            );
+          }
+        });
+
+        xhr.addEventListener('error', () => reject(new ApiError('No se pudo conectar con el servidor.', 0, null)));
+        xhr.send(formData);
+      });
+    },
+  },
+
+  documents: {
+    list() {
+      return request('/documents');
+    },
+
+    upload(formData, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE}/documents`);
+        xhr.withCredentials = true;
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        Object.entries(csrfHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable && typeof onProgress === 'function') {
+            onProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          refreshCsrf(xhr);
+
+          let payload = null;
+          try {
+            payload = JSON.parse(xhr.responseText || 'null');
+          } catch {
+            payload = null;
+          }
+
+          if (xhr.status >= 200 && xhr.status < 300 && payload?.success !== false) {
+            resolve(payload?.data ?? payload);
+          } else {
+            reject(
+              new ApiError(
+                payload?.message || `No se pudo subir el documento (${xhr.status}).`,
                 xhr.status,
                 payload,
               ),

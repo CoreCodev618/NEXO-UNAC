@@ -72,11 +72,34 @@ $routes->group('api/v1', [
 ], static function (RouteCollection $routes): void {
     $routes->get('me', 'MeController::show');
 
-    // Recursos (workspaces, pages, blocks, tasks, events) se agregan en cada fase.
+    // Recursos del backend (B). Se publican cuando el controlador existe.
+    if (class_exists(\App\Controllers\Api\V1\WorkspaceController::class)) {
+        $routes->get('workspaces', 'WorkspaceController::index');
+        $routes->get('workspaces/(:num)', 'WorkspaceController::show/$1');
+        $routes->get('workspaces/(:num)/tasks', 'WorkspaceController::tasks/$1');
+    }
 
-    // Contrato reservado del chat: se publica cuando el controlador de la fase
-    // IA exista; mientras tanto la ruta no se registra.
+    if (class_exists(\App\Controllers\Api\V1\PageController::class)) {
+        $routes->post('pages', 'PageController::create');
+        $routes->get('pages/(:num)', 'PageController::show/$1');
+        $routes->put('pages/(:num)', 'PageController::update/$1');
+    }
+
+    if (class_exists(\App\Controllers\Api\V1\TaskController::class)) {
+        $routes->post('tasks', 'TaskController::create');
+        $routes->put('tasks/(:num)/move', 'TaskController::move/$1');
+        $routes->put('tasks/(:num)', 'TaskController::update/$1');
+        $routes->delete('tasks/(:num)', 'TaskController::delete/$1');
+    }
+
+    // Contrato reservado del chat y documentos (A). Se publican cuando el
+    // controlador de la fase IA exista; mientras tanto la ruta no se registra.
     if (class_exists(\App\Controllers\Api\V1\AIChatController::class)) {
         $routes->post('chat', 'AIChatController::send');
+    }
+
+    if (class_exists(\App\Controllers\Api\V1\DocumentController::class)) {
+        $routes->get('documents', 'DocumentController::index');
+        $routes->post('documents', 'DocumentController::create');
     }
 });

@@ -297,6 +297,8 @@ $renderBlockMenu = static function (int|string $id): string {
             <span><?= nexo_icon('info') ?> Los cambios se guardan con el backend de páginas</span>
         </div>
     </div>
+
+    <?= $this->include('partials/rag-upload', ['page' => $page, 'isPreview' => $isPreview]) ?>
 </div>
 
 <div class="nx-backdrop" data-context-backdrop></div>
