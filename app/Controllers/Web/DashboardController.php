@@ -10,7 +10,9 @@ class DashboardController extends BaseWebController
 {
     public function index(): string
     {
-        $dashboard = FrontendDemo::dashboard();
+        $dashboard = $this->isPreview()
+            ? FrontendDemo::dashboard()
+            : $this->repository()->dashboard((int) auth()->id());
 
         return $this->render('dashboard/index', [
             'pageTitle'   => 'Mi mesa',

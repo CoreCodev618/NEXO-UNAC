@@ -11,7 +11,13 @@ class PageController extends BaseWebController
 {
     public function show(string $id): string
     {
-        $page = FrontendDemo::page((int) $id);
+        $pageId = (int) $id;
+
+        if ($this->isPreview()) {
+            $page = FrontendDemo::page($pageId);
+        } else {
+            $page = $this->repository()->page($pageId, (int) auth()->id());
+        }
 
         if ($page === null) {
             throw PageNotFoundException::forPageNotFound('No encontramos esa página.');
@@ -32,7 +38,23 @@ class PageController extends BaseWebController
     public function new(): string
     {
         $workspaceId = (int) ($this->request->getGet('workspace') ?? 1);
-        $page        = FrontendDemo::newPage($workspaceId);
+
+        if ($this->isPreview()) {
+            $page = FrontendDemo::newPage($workspaceId);
+        } else {
+            $userId = (int) auth()->id();
+            $workspace = $this->repository()->workspace($workspaceId, $userId);
+
+            if ($workspace === null) {
+                $first = $this->repository()->workspacesForUser($userId)[0] ?? null;
+                if ($first === null) {
+                    throw PageNotFoundException::forPageNotFound('No tienes espacios disponibles.');
+                }
+                $workspaceId = (int) $first['id'];
+            }
+
+            $page = $this->repository()->newPage($workspaceId, $userId);
+        }
 
         $this->setWorkspace($page['workspace']);
         $this->setPage($page);

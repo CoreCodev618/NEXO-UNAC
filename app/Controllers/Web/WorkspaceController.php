@@ -11,14 +11,16 @@ class WorkspaceController extends BaseWebController
 {
     public function index(): string
     {
-        $workspaces = [];
-
-        foreach (FrontendDemo::workspaces() as $workspace) {
-            $hydrated = FrontendDemo::workspace((int) $workspace['id']);
-
-            if ($hydrated !== null) {
-                $workspaces[] = $hydrated;
+        if ($this->isPreview()) {
+            $workspaces = [];
+            foreach (FrontendDemo::workspaces() as $workspace) {
+                $hydrated = FrontendDemo::workspace((int) $workspace['id']);
+                if ($hydrated !== null) {
+                    $workspaces[] = $hydrated;
+                }
             }
+        } else {
+            $workspaces = $this->repository()->workspacesForUser((int) auth()->id());
         }
 
         return $this->render('workspaces/index', [
@@ -31,7 +33,17 @@ class WorkspaceController extends BaseWebController
 
     public function show(string $id): string
     {
-        $workspace = FrontendDemo::workspace((int) $id);
+        $workspaceId = (int) $id;
+
+        if ($this->isPreview()) {
+            $workspace = FrontendDemo::workspace($workspaceId);
+            $pages     = $workspace !== null ? FrontendDemo::pages($workspaceId) : [];
+            $tasks     = FrontendDemo::tasks($workspaceId);
+        } else {
+            $workspace = $this->repository()->workspace($workspaceId, (int) auth()->id());
+            $pages     = $workspace !== null ? $this->repository()->pages($workspaceId) : [];
+            $tasks     = $workspace !== null ? $this->repository()->tasks($workspaceId) : [];
+        }
 
         if ($workspace === null) {
             throw PageNotFoundException::forPageNotFound('No encontramos ese espacio.');
@@ -39,20 +51,18 @@ class WorkspaceController extends BaseWebController
 
         $this->setWorkspace($workspace);
 
-        $pages      = FrontendDemo::pages((int) $workspace['id']);
-        $flatPages  = $this->flatten($pages);
-        $tasks      = FrontendDemo::tasks((int) $workspace['id']);
-        $openTasks  = array_values(array_filter($tasks, static fn (array $task): bool => $task['status'] !== 'done'));
+        $flatPages = $this->flatten($pages);
+        $openTasks = array_values(array_filter($tasks, static fn (array $task): bool => $task['status'] !== 'done'));
 
         return $this->render('workspaces/show', [
-            'pageTitle'    => $workspace['name'],
-            'topbarTitle'  => $workspace['name'],
-            'activeNav'    => 'workspaces',
-            'workspace'    => $workspace,
-            'pages'        => $pages,
-            'flatPages'    => $flatPages,
-            'tasks'        => $openTasks,
-            'task_counts'  => [
+            'pageTitle'   => $workspace['name'],
+            'topbarTitle' => $workspace['name'],
+            'activeNav'   => 'workspaces',
+            'workspace'   => $workspace,
+            'pages'       => $pages,
+            'flatPages'   => $flatPages,
+            'tasks'       => $openTasks,
+            'task_counts' => [
                 'todo'  => count(array_filter($tasks, static fn (array $task): bool => $task['status'] === 'todo')),
                 'doing' => count(array_filter($tasks, static fn (array $task): bool => $task['status'] === 'doing')),
                 'done'  => count(array_filter($tasks, static fn (array $task): bool => $task['status'] === 'done')),
