@@ -23,3 +23,5 @@ python/.venv/
 python/out/
 .cache/
 qdrant_storage/
+
+/build/

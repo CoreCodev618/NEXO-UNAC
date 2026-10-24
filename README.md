@@ -14,7 +14,7 @@ composer install
 cp .env.example .env
 # configurar database + ALLOWED_EMAIL_DOMAINS=unac.edu.pe + GEMINI_API_KEY
 php spark migrate --all
-php spark db:seed FacultySeeder
+php spark db:seed WorkspaceSeeder   # también siembra FacultySeeder (FIIS)
 php spark serve
 ```
 
