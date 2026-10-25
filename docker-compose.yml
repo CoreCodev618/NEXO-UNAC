@@ -1,0 +1,52 @@
+# Demo local completa: app + MariaDB en contenedores.
+# Uso:
+#   docker compose up --build -d
+#   abrir http://localhost:8083/login
+#   docker compose logs -f app
+#
+# Las credenciales de abajo son SOLO para esta demo local y no sirven en
+# producción. El contenedor genera su .env al arrancar.
+name: nexo-piloto
+
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: nexo_unac_piloto
+      MARIADB_USER: nexo
+      MARIADB_PASSWORD: piloto-local
+      MARIADB_ROOT_PASSWORD: piloto-local-root
+    volumes:
+      - nexo-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8083}
+      PORT: "80"
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: nexo_unac_piloto
+      DB_USER: nexo
+      DB_PASS: piloto-local
+      NEXO_AUTO_MIGRATE: "true"
+      NEXO_AUTO_SEED: "true"
+      NEXO_PREVIEW: "false"
+    ports:
+      - "8083:80"
+    restart: unless-stopped
+
+volumes:
+  nexo-db:

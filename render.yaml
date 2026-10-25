@@ -1,0 +1,46 @@
+# Render Blueprint para el PilotoV1.
+#
+# Requiere una base MySQL externa gratis (Aiven u otra) y definir los valores
+# marcados con sync: false en el panel de Render. El disco de Render Free es
+# efímero: los adjuntos subidos pueden desaparecer al reiniciar; la base de
+# datos y el RAG local sobre MySQL no dependen del disco del contenedor.
+services:
+  - type: web
+    name: nexo-piloto
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /login
+    envVars:
+      - key: APP_BASE_URL
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: NEXO_AUTO_MIGRATE
+        value: "true"
+      - key: NEXO_AUTO_SEED
+        value: "true"
+      - key: NEXO_PREVIEW
+        value: "false"
+      - key: ALLOWED_EMAIL_DOMAINS
+        value: unac.edu.pe
+      # RAG externo opcional. Sin estas claves el chat usa el fallback local
+      # sobre document_chunks y lo marca como degradado en la respuesta.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
