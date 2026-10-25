@@ -184,7 +184,12 @@ def _points(
             "id": vectorstore.point_id(chunk.doc_id, chunk.chunk_index),
             "vector": vector,
             "payload": vectorstore.payload_for_chunk(
-                chunk, args.curso_id, args.class_date, args.topic
+                chunk,
+                args.curso_id,
+                args.class_date,
+                args.topic,
+                page_id=args.page_id,
+                workspace_id=args.workspace_id,
             ),
         }
         for chunk, vector in zip(chunks, vectors)
@@ -280,6 +285,18 @@ def main() -> int:
         help="JSON {fuente: doc_id} para asignar IDs de MySQL por fuente",
     )
     parser.add_argument("--curso-id", type=_positive_int, default=1)
+    parser.add_argument(
+        "--page-id",
+        type=_positive_int,
+        default=0,
+        help="pages.id al que pertenece el material (0 = sin pagina)",
+    )
+    parser.add_argument(
+        "--workspace-id",
+        type=_positive_int,
+        default=0,
+        help="workspaces.id al que pertenece el material (0 = sin espacio)",
+    )
     parser.add_argument(
         "--class-date",
         type=_iso_date_arg,

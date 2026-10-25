@@ -920,3 +920,21 @@
     display: none;
   }
 }
+
+.nx-editor__readonly-banner {
+  border-color: oklch(55% 0.04 250 / 0.28);
+  background: var(--paper-soft);
+}
+
+.nx-doc--readonly .nx-doc-title {
+  cursor: default;
+}
+
+.nx-doc--readonly .nx-block__editor,
+.nx-doc--readonly .nx-checklist__text,
+.nx-doc--readonly .nx-tableblock__cell,
+.nx-doc--readonly .nx-quoteblock__text,
+.nx-doc--readonly .nx-callout__title,
+.nx-doc--readonly .nx-callout__text {
+  cursor: default;
+}

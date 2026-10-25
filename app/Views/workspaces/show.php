@@ -13,6 +13,7 @@
  */
 $workspaceId = (int) $workspace['id'];
 $newPageUrl  = nexo_url($prefix, 'pages/nueva') . '?workspace=' . $workspaceId;
+$canEdit     = (bool) ($workspace['can_edit'] ?? true);
 ?>
 <div class="nx-page">
     <header class="nx-workspace-head">
@@ -42,14 +43,16 @@ $newPageUrl  = nexo_url($prefix, 'pages/nueva') . '?workspace=' . $workspaceId;
         </div>
 
         <div class="nx-page__actions">
-            <button class="nx-btn nx-btn--secondary" type="button" data-task-new>
-                <?= nexo_icon('plus') ?>
-                Nueva tarea
-            </button>
-            <a class="nx-btn nx-btn--primary" href="<?= esc($newPageUrl, 'attr') ?>">
-                <?= nexo_icon('plus') ?>
-                Nueva página
-            </a>
+            <?php if ($canEdit): ?>
+                <button class="nx-btn nx-btn--secondary" type="button" data-task-new>
+                    <?= nexo_icon('plus') ?>
+                    Nueva tarea
+                </button>
+                <a class="nx-btn nx-btn--primary" href="<?= esc($newPageUrl, 'attr') ?>">
+                    <?= nexo_icon('plus') ?>
+                    Nueva página
+                </a>
+            <?php endif ?>
         </div>
     </header>
 
@@ -99,7 +102,7 @@ $newPageUrl  = nexo_url($prefix, 'pages/nueva') . '?workspace=' . $workspaceId;
                                     <span><?= nexo_icon('clock') ?><?= esc(nexo_datetime($page['updated_at'] ?? null)) ?></span>
                                     <span><?= nexo_icon('user') ?><?= esc($page['author'] ?? 'Sin autor') ?></span>
                                     <?php foreach (array_slice($page['tags'] ?? [], 0, 2) as $tag): ?>
-                                        <span><?= nexo_icon('tag') ?><?= esc($tag) ?></span>
+                                        <span><?= nexo_icon('tag') ?><?= esc($tag['name'] ?? $tag) ?></span>
                                     <?php endforeach ?>
                                     <?php if (! empty($page['has_children'])): ?>
                                         <span><?= nexo_icon('layers') ?>Con subpáginas</span>

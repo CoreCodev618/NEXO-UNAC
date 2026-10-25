@@ -13,7 +13,7 @@ $workspace   = $page['workspace'];
 $comments    = $page['comments'] ?? [];
 $attachments = $page['attachments'] ?? [];
 $pageId      = (int) ($page['id'] ?? 0);
-$editable    = true;
+$editable    = (bool) ($page['can_edit'] ?? true);
 
 $languageOptions = ['python', 'javascript', 'php', 'sql', 'bash', 'json', 'html', 'css', 'texto'];
 
@@ -30,7 +30,7 @@ $renderBlockMenu = static function (int|string $id): string {
         . '</div></div>';
 };
 ?>
-<div class="nx-doc" data-editor data-page-id="<?= $pageId ?>" data-page-workspace="<?= (int) $workspace['id'] ?>">
+<div class="nx-doc<?= $editable ? '' : ' nx-doc--readonly' ?>" data-editor data-page-id="<?= $pageId ?>" data-page-workspace="<?= (int) $workspace['id'] ?>" data-readonly="<?= $editable ? '0' : '1' ?>" data-can-manage="<?= ! empty($page['can_manage']) ? '1' : '0' ?>">
     <div class="nx-doc-cover nx-cover <?= esc(nexo_cover_class($page['cover'] ?? 'rose'), 'attr') ?>">
         <div class="nx-doc-cover__actions">
             <button class="nx-icon-btn" type="button" data-coming-soon="Elegir otra portada se habilitará con el editor del backend." aria-label="Cambiar portada" data-tip="Cambiar portada">
@@ -58,7 +58,7 @@ $renderBlockMenu = static function (int|string $id): string {
             <h1
                 class="nx-doc-title"
                 contenteditable="<?= $editable ? 'true' : 'false' ?>"
-                spellcheck="true"
+                spellcheck="<?= $editable ? 'true' : 'false' ?>"
                 role="textbox"
                 aria-label="Título de la página"
                 data-page-title-input
@@ -73,7 +73,7 @@ $renderBlockMenu = static function (int|string $id): string {
             <span><?= nexo_icon('type') ?><span data-word-count><?= (int) ($page['word_count'] ?? 0) ?></span> palabras</span>
             <?php if (! empty($page['tags'])): ?>
                 <?php foreach ($page['tags'] as $tag): ?>
-                    <span class="nx-chip"><?= nexo_icon('tag') ?><?= esc($tag) ?></span>
+                    <span class="nx-chip"><?= nexo_icon('tag') ?><?= esc($tag['name'] ?? $tag) ?></span>
                 <?php endforeach ?>
             <?php endif ?>
         </div>
@@ -123,6 +123,15 @@ $renderBlockMenu = static function (int|string $id): string {
                 <span>
                     Estás editando datos de ejemplo. Los cambios se quedan en esta pestaña y se marcan como «Guardado local»;
                     el guardado real se activa cuando el endpoint de bloques del backend esté disponible.
+                </span>
+            </div>
+        <?php endif ?>
+
+        <?php if (! $editable): ?>
+            <div class="nx-editor__demo-banner nx-editor__readonly-banner">
+                <?= nexo_icon('lock') ?>
+                <span>
+                    Solo lectura: tu rol en este espacio permite consultar y comentar, pero no editar.
                 </span>
             </div>
         <?php endif ?>

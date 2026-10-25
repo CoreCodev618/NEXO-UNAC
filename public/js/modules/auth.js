@@ -116,6 +116,21 @@ function initPreviewForms() {
   });
 }
 
+function initDemoLogin() {
+  const panel = qs('[data-demo-login]');
+  const fill = qs('[data-demo-fill]', panel);
+  if (!panel || !fill) return;
+
+  fill.addEventListener('click', () => {
+    const email = qs('#email');
+    const password = qs('#password');
+    if (email) email.value = 'demo@unac.edu.pe';
+    if (password) password.value = 'NexoDemo2026!';
+    email?.focus();
+    toast.info('Credenciales de demostración listas. Pulsa «Entrar a NEXO».', 'Cuenta demo');
+  });
+}
+
 function initRecovery() {
   qsa('[data-auth-recovery]').forEach((button) => {
     button.addEventListener('click', (event) => {
@@ -134,5 +149,6 @@ export function initAuth() {
   initStrength();
   initConfirmPassword();
   initPreviewForms();
+  initDemoLogin();
   initRecovery();
 }

@@ -1612,3 +1612,44 @@
     width: 100%;
   }
 }
+
+.nx-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+.nx-chip__remove:hover {
+  opacity: 1;
+  background: oklch(0% 0 0 / 0.08);
+}
+
+.nx-chip__remove .nx-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.nx-tag-form {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.nx-tag-form .nx-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.nx-tag-form .nx-btn {
+  flex: none;
+}

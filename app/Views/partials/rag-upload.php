@@ -6,7 +6,8 @@
  * @var bool  $isPreview
  */
 $pageId   = (int) ($page['id'] ?? 0);
-$disabled = $isPreview || $pageId <= 0;
+$canEdit  = (bool) ($page['can_edit'] ?? true);
+$disabled = $isPreview || $pageId <= 0 || ! $canEdit;
 $maxMb    = max(1, min(100, (int) env('RAG_MAX_UPLOAD_MB', 20)));
 ?>
 <section
@@ -36,6 +37,11 @@ $maxMb    = max(1, min(100, (int) env('RAG_MAX_UPLOAD_MB', 20)));
         <p class="nx-rag__note">
             <?= nexo_icon('info') ?>
             Guarda la página primero para asociar el material a este apunte.
+        </p>
+    <?php elseif (! $canEdit): ?>
+        <p class="nx-rag__note">
+            <?= nexo_icon('lock') ?>
+            Solo lectura: pide a un editor del espacio que suba material para el tutor.
         </p>
     <?php endif ?>
 

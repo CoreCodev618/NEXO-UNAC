@@ -42,6 +42,19 @@ final class PythonRunner
         return $this->binary;
     }
 
+    public function isAvailable(): bool
+    {
+        if ($this->binary === '') {
+            return false;
+        }
+
+        if (! str_contains($this->binary, '/')) {
+            return $this->existsInPath($this->binary);
+        }
+
+        return is_file($this->binary) && is_executable($this->binary);
+    }
+
     /**
      * @param list<string> $args argumentos del script, empezando por la ruta .py
      *

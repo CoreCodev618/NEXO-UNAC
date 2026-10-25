@@ -34,9 +34,28 @@ let dirty = false;
 let saving = false;
 let pendingSave = false;
 let lastErrorToast = 0;
+let readOnly = false;
 
 function isPreview() {
   return document.body.dataset.preview === '1';
+}
+
+function isReadOnly() {
+  return readOnly;
+}
+
+function applyReadOnly() {
+  editor.classList.add('nx-doc--readonly');
+  qsa('[contenteditable]', editor).forEach((node) => {
+    node.setAttribute('contenteditable', 'false');
+    node.setAttribute('aria-readonly', 'true');
+  });
+  qsa('textarea, input, select', editor).forEach((node) => {
+    node.disabled = true;
+  });
+  qsa('.nx-editor-toolbar, .nx-editor__add, .nx-block__gutter, .nx-block__actions, .nx-editor__foot, .nx-doc-cover__actions', editor)
+    .forEach((node) => node.setAttribute('hidden', ''));
+  saveState('saved', 'Solo lectura');
 }
 
 function blockIdForNew() {
@@ -314,6 +333,8 @@ function applyCreatedIds(results) {
 }
 
 async function persist() {
+  if (isReadOnly()) return;
+
   if (saving) {
     pendingSave = true;
     return;
@@ -408,6 +429,8 @@ const scheduleSave = debounce(() => {
 }, 700);
 
 function markDirty() {
+  if (isReadOnly()) return;
+
   dirty = true;
   updateWordCount();
   scheduleSave();
@@ -729,7 +752,7 @@ function handleBlockAction(action, button) {
 
 function bindEditorEvents() {
   blocksRoot.addEventListener('input', (event) => {
-    if (event.target.closest('.nx-block')) markDirty();
+    if (!isReadOnly() && event.target.closest('.nx-block')) markDirty();
   });
 
   blocksRoot.addEventListener('click', (event) => {
@@ -853,17 +876,19 @@ function bindEditorEvents() {
 
 function bindPageEvents() {
   const title = qs('[data-page-title-input]');
-  title?.addEventListener('input', () => {
+  if (!isReadOnly()) title?.addEventListener('input', () => {
     updatePageChrome((title.innerText || '').trim());
     markDirty();
   });
   title?.addEventListener('keydown', (event) => {
+    if (isReadOnly()) return;
     if (event.key === 'Enter') {
       event.preventDefault();
       title.blur();
     }
   });
   title?.addEventListener('paste', (event) => {
+    if (isReadOnly()) return;
     event.preventDefault();
     const text = event.clipboardData?.getData('text/plain') || '';
     document.execCommand('insertText', false, text);
@@ -884,6 +909,7 @@ function bindPageEvents() {
 
   document.addEventListener('keydown', (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+      if (isReadOnly()) return;
       event.preventDefault();
       if (dirty) {
         dirty = false;
@@ -899,12 +925,17 @@ export function initEditor() {
 
   blocksRoot = qs('[data-blocks]', editor);
   pageId = Number(editor.dataset.pageId || 0);
+  readOnly = editor.dataset.readonly === '1';
 
-  if (!qs('.nx-block', blocksRoot)) {
+  if (readOnly) {
+    applyReadOnly();
+  }
+
+  if (!qs('.nx-block', blocksRoot) && !isReadOnly()) {
     blocksRoot.appendChild(buildBlock('parrafo'));
   }
 
-  const draft = isPreview() ? readLocal() : null;
+  const draft = isPreview() && !isReadOnly() ? readLocal() : null;
   if (draft) {
     blocksRoot.replaceChildren(
       ...draft.blocks.map((block) =>
@@ -927,7 +958,7 @@ export function initEditor() {
     draft ? 'Borrador local' : (isPreview() ? 'Vista local' : 'Guardado'),
   );
 
-  if (window.Sortable) {
+  if (window.Sortable && !isReadOnly()) {
     new window.Sortable(blocksRoot, {
       animation: 150,
       handle: '[data-block-drag]',

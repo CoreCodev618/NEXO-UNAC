@@ -65,7 +65,7 @@ final class NexoRepository
     public function workspacesForUser(int $userId): array
     {
         $db  = db_connect();
-        $sql = 'SELECT w.*
+        $sql = 'SELECT w.*, wm.role AS my_role
                 FROM workspace_members wm
                 INNER JOIN workspaces w ON w.id = wm.workspace_id
                 WHERE wm.user_id = ?
@@ -89,7 +89,10 @@ final class NexoRepository
             return null;
         }
 
-        return $this->hydrateWorkspace($row);
+        $workspace = $this->hydrateWorkspace($row);
+        $role      = (new WorkspaceAccess())->role($workspaceId, $userId);
+
+        return $this->withRole($workspace, $role);
     }
 
     public function pages(int $workspaceId): array
@@ -125,6 +128,12 @@ final class NexoRepository
                 'tags'         => [],
                 'children'     => [],
             ];
+        }
+
+        $tagsByPage = $this->tagsForPages(array_keys($index));
+
+        foreach ($index as $id => $page) {
+            $index[$id]['tags'] = $tagsByPage[$id] ?? [];
         }
 
         $childrenByParent = [];
@@ -185,6 +194,10 @@ final class NexoRepository
         }, $blocks);
 
         $wordCount = $this->wordCount($blocks);
+        $role      = (new WorkspaceAccess())->role((int) $page['workspace_id'], $userId);
+        $tags      = $this->tags($pageId);
+        $comments  = $this->comments($pageId);
+        $files     = $this->attachments($pageId);
 
         return [
             'id'           => (int) $page['id'],
@@ -198,13 +211,17 @@ final class NexoRepository
             'updated_at'   => $page['updated_at'],
             'author'       => $this->authorName((int) ($page['created_by'] ?? 0)),
             'workspace'    => $workspace,
-            'tags'         => [],
+            'tags'         => $tags,
             'blocks'       => $blocks,
-            'comments'     => [],
-            'attachments'  => [],
+            'comments'     => $comments,
+            'attachments'  => $files,
             'members'      => $this->members((int) $page['workspace_id']),
             'word_count'   => $wordCount,
             'read_time'    => max(1, (int) ceil($wordCount / 210)),
+            'my_role'      => $role,
+            'can_edit'     => in_array($role, ['owner', 'editor'], true),
+            'can_manage'   => $role === 'owner',
+            'can_comment'  => $role !== null,
         ];
     }
 
@@ -236,6 +253,10 @@ final class NexoRepository
             'word_count'   => 0,
             'read_time'    => 1,
             'is_new'       => true,
+            'my_role'      => $workspace['my_role'] ?? null,
+            'can_edit'     => (bool) ($workspace['can_edit'] ?? false),
+            'can_manage'   => (bool) ($workspace['can_manage'] ?? false),
+            'can_comment'  => true,
         ];
     }
 
@@ -350,8 +371,12 @@ final class NexoRepository
                 LIMIT ' . $limit;
 
         $rows = $db->query($sql, [$userId])->getResultArray();
+        $tagsByPage = $this->tagsForPages(array_map(
+            static fn (array $row): int => (int) $row['id'],
+            $rows
+        ));
 
-        return array_map(function (array $page): array {
+        return array_map(function (array $page) use ($tagsByPage): array {
             $meta = $this->workspaceMeta((string) ($page['workspace_type'] ?? ''));
 
             $page['id']           = (int) $page['id'];
@@ -363,7 +388,7 @@ final class NexoRepository
             $page['workspace_icon'] = $meta['icon'];
             $page['workspace_tone'] = $meta['tone'];
             $page['workspace_type'] = $page['workspace_type'];
-            $page['tags']           = [];
+            $page['tags']           = $tagsByPage[(int) $page['id']] ?? [];
             $page['cover']          = $page['cover'] ?? 'rose';
             $page['icon']           = $page['icon'] ?? 'file-text';
 
@@ -482,6 +507,126 @@ final class NexoRepository
             ->countAllResults() > 0;
     }
 
+    /**
+     * @param list<int> $pageIds
+     *
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function tagsForPages(array $pageIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $pageIds))));
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = db_connect()
+            ->table('page_tags pt')
+            ->select('pt.page_id, t.id, t.name, t.color')
+            ->join('tags t', 't.id = pt.tag_id', 'INNER')
+            ->whereIn('pt.page_id', $ids)
+            ->orderBy('t.name', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $out[(int) $row['page_id']][] = [
+                'id'    => (int) $row['id'],
+                'name'  => (string) $row['name'],
+                'color' => (string) ($row['color'] ?? 'paper'),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function tags(int $pageId): array
+    {
+        return $this->tagsForPages([$pageId])[$pageId] ?? [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function comments(int $pageId): array
+    {
+        $rows = db_connect()
+            ->table('comments c')
+            ->select('c.id, c.page_id, c.user_id, c.content, c.created_at, u.name, u.username,
+                      (SELECT ag.group FROM auth_groups_users ag WHERE ag.user_id = u.id ORDER BY ag.id ASC LIMIT 1) AS group_name')
+            ->join('users u', 'u.id = c.user_id', 'LEFT')
+            ->where('c.page_id', $pageId)
+            ->orderBy('c.id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $current = (int) auth()->id();
+
+        return array_map(static function (array $row) use ($current): array {
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($name === '') {
+                $name = trim((string) ($row['username'] ?? 'Usuario'));
+            }
+
+            $tone = match (true) {
+                ($row['group_name'] ?? '') === 'admin'   => 'wine',
+                ($row['group_name'] ?? '') === 'docente' => 'gold',
+                default                                  => 'sage',
+            };
+
+            return [
+                'id'         => (int) $row['id'],
+                'page_id'    => (int) $row['page_id'],
+                'user_id'    => $row['user_id'] !== null ? (int) $row['user_id'] : null,
+                'author'     => $name !== '' ? $name : 'Usuario',
+                'initials'   => nexo_initials($name),
+                'tone'       => $tone,
+                'content'    => (string) $row['content'],
+                'created_at' => $row['created_at'],
+                'mine'       => (int) ($row['user_id'] ?? 0) === $current,
+            ];
+        }, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function attachments(int $pageId): array
+    {
+        $rows = db_connect()
+            ->table('attachments')
+            ->select('id, page_id, user_id, file_path, file_name, file_type, file_size, created_at')
+            ->where('page_id', $pageId)
+            ->orderBy('id', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        $base = rtrim((string) config('App')->baseURL, '/');
+
+        return array_map(static function (array $row) use ($base): array {
+            $stored = (string) ($row['file_path'] ?? '');
+            $name   = trim((string) ($row['file_name'] ?? ''));
+            if ($name === '') {
+                $name = basename($stored);
+            }
+
+            return [
+                'id'           => (int) $row['id'],
+                'page_id'      => (int) $row['page_id'],
+                'user_id'      => $row['user_id'] !== null ? (int) $row['user_id'] : null,
+                'file_path'    => $stored,
+                'file_name'    => $name,
+                'file_type'    => $row['file_type'] ?? null,
+                'file_size'    => isset($row['file_size']) ? (int) $row['file_size'] : null,
+                'created_at'   => $row['created_at'],
+                'download_url' => $base . '/api/v1/attachments/' . (int) $row['id'],
+            ];
+        }, $rows);
+    }
+
     private function hydrateWorkspace(array $workspace): array
     {
         $workspaceId = (int) ($workspace['id'] ?? 0);
@@ -503,6 +648,15 @@ final class NexoRepository
         $workspace['tone']        = $meta['tone'];
         $workspace['cover']       = $meta['cover'];
         $workspace['updated_at']  = $workspace['updated_at'] ?? date('Y-m-d H:i:s');
+
+        return $this->withRole($workspace, isset($workspace['my_role']) ? (string) $workspace['my_role'] : null);
+    }
+
+    private function withRole(array $workspace, ?string $role): array
+    {
+        $workspace['my_role']    = $role;
+        $workspace['can_edit']   = in_array($role, ['owner', 'editor'], true);
+        $workspace['can_manage'] = $role === 'owner';
 
         return $workspace;
     }

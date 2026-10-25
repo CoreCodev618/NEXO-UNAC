@@ -143,15 +143,12 @@ async function refresh(root) {
   if (!list) return;
 
   try {
-    const documents = await api.documents.list();
     const pageId = Number(root.dataset.ragPage || 0);
-    // Los documentos sin página (subidos antes de que B persistiera la
-    // página actual) también se muestran para no ocultar material indexado.
-    const scoped = (Array.isArray(documents) ? documents : []).filter(
-      (document) => !pageId || !document.page_id || Number(document.page_id) === pageId,
-    );
+    const documents = await api.documents.list(pageId);
 
-    renderList(root, scoped);
+    // El backend acota por página; no se filtra en el cliente para no
+    // mezclar material de otros espacios si alguna respuesta llegara sucia.
+    renderList(root, Array.isArray(documents) ? documents : []);
   } catch (error) {
     if (error instanceof ApiError && error.unavailable) {
       list.innerHTML = `<p class="nx-rag__empty">El servicio de documentos todavía no está disponible.</p>`;

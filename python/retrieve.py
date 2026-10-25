@@ -55,6 +55,8 @@ def _meta(payload: dict) -> str:
         ("class_date", "fecha"),
         ("topic", "tema"),
         ("doc_id_str", "doc"),
+        ("workspace_id", "espacio"),
+        ("page_id", "pagina"),
         ("chunk_key", "chunk"),
     ):
         value = payload.get(key)
@@ -71,6 +73,13 @@ def main() -> int:
     parser.add_argument("--class-date", type=_iso_date_arg, default=None)
     parser.add_argument("--topic", default=None)
     parser.add_argument("--doc-id", type=_positive_int, default=None)
+    parser.add_argument("--page-id", type=_positive_int, default=None)
+    parser.add_argument("--workspace-id", type=_positive_int, default=None)
+    parser.add_argument(
+        "--workspace-ids",
+        default=None,
+        help="lista de espacios separada por comas; acota el chat global",
+    )
     parser.add_argument(
         "--min-score",
         type=float,
@@ -88,11 +97,25 @@ def main() -> int:
         return 2
 
     try:
+        workspace_ids = None
+        if args.workspace_ids:
+            try:
+                workspace_ids = [int(item) for item in args.workspace_ids.split(",") if item.strip()]
+            except ValueError as exc:
+                raise ValueError("--workspace-ids debe ser una lista de enteros") from exc
+            if any(item <= 0 for item in workspace_ids):
+                raise ValueError("--workspace-ids solo admite enteros > 0")
+            if not workspace_ids:
+                raise ValueError("--workspace-ids no puede estar vacio")
+
         filters = vectorstore.build_filter(
             curso_id=args.curso_id,
             class_date=args.class_date,
             topic=args.topic,
             doc_id=args.doc_id,
+            page_id=args.page_id,
+            workspace_id=args.workspace_id,
+            workspace_ids=workspace_ids,
         )
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

@@ -8,6 +8,7 @@
  */
 $comments    = $page['comments'] ?? [];
 $attachments = $page['attachments'] ?? [];
+$canEdit     = (bool) ($page['can_edit'] ?? true);
 ?>
 <aside class="nx-context" id="nx-context" aria-labelledby="nx-context-title" aria-hidden="true" inert>
     <div class="nx-context__head">
@@ -54,6 +55,9 @@ $attachments = $page['attachments'] ?? [];
                                 <p class="nx-comment__text"><?= esc($comment['content'] ?? '') ?></p>
                                 <div class="nx-comment__actions">
                                     <button type="button" data-comment-reply>Responder</button>
+                                    <?php if (! empty($comment['mine']) || ! empty($page['can_manage'])): ?>
+                                        <button type="button" data-comment-delete="<?= (int) $comment['id'] ?>">Eliminar</button>
+                                    <?php endif ?>
                                 </div>
                             </div>
                         </article>
@@ -78,26 +82,31 @@ $attachments = $page['attachments'] ?? [];
         </section>
 
         <section id="nx-context-files" role="tabpanel" aria-labelledby="nx-context-tab-files" data-context-panel="files" hidden>
-            <label class="nx-dropzone" data-upload-zone>
-                <?= nexo_icon('upload') ?>
-                <strong>Adjuntar un archivo</strong>
-                <span>PDF, DOCX, PPTX, JPG, PNG o ZIP · máx. 10 MB</span>
-                <input
-                    class="nx-sr-only"
-                    type="file"
-                    accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png,.zip"
-                    data-upload-input
-                >
-            </label>
-            <p class="nx-hint" style="margin-top: 8px;">Los archivos se guardan en el espacio y se pueden citar desde el tutor.</p>
+            <?php if ($canEdit): ?>
+                <label class="nx-dropzone" data-upload-zone>
+                    <?= nexo_icon('upload') ?>
+                    <strong>Adjuntar un archivo</strong>
+                    <span>PDF, DOCX, PPTX, JPG, PNG o ZIP · máx. 10 MB</span>
+                    <input
+                        class="nx-sr-only"
+                        type="file"
+                        accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png,.zip"
+                        data-upload-input
+                    >
+                </label>
+                <p class="nx-hint" style="margin-top: 8px;">Los archivos se guardan en el espacio y se pueden citar desde el tutor.</p>
+            <?php else: ?>
+                <div class="nx-context-note">Solo lectura: un editor del espacio puede adjuntar archivos.</div>
+            <?php endif ?>
 
             <div class="nx-attachment-list" style="margin-top: 16px;" data-attachment-list>
                 <?php foreach ($attachments as $file): ?>
                     <?php
-                    $name = basename((string) ($file['file_path'] ?? 'archivo'));
+                    $name = (string) ($file['file_name'] ?? basename((string) ($file['file_path'] ?? 'archivo')));
                     $ext  = nexo_attachment_ext($name, $file['file_type'] ?? null);
+                    $url  = (string) ($file['download_url'] ?? '#');
                     ?>
-                    <a class="nx-attachment" href="#" data-attachment-download="<?= esc($name, 'attr') ?>">
+                    <a class="nx-attachment" href="<?= esc($url, 'attr') ?>" data-attachment-download="<?= esc($name, 'attr') ?>" data-attachment-url="<?= esc($url, 'attr') ?>">
                         <span class="nx-attachment__icon nx-attachment__icon--<?= esc(nexo_attachment_tone($ext), 'attr') ?>" aria-hidden="true"><?= esc($ext) ?></span>
                         <span class="nx-attachment__main">
                             <span class="nx-attachment__name"><?= esc($name) ?></span>
@@ -135,14 +144,29 @@ $attachments = $page['attachments'] ?? [];
 
             <div class="nx-aside-section">
                 <div class="nx-aside-title">Etiquetas</div>
-                <div class="nx-doc-tags">
+                <div class="nx-doc-tags" data-page-tags>
                     <?php foreach ($page['tags'] ?? [] as $tag): ?>
-                        <span class="nx-chip"><?= nexo_icon('tag') ?><?= esc($tag) ?></span>
+                        <?php $tagId = (int) ($tag['id'] ?? 0); ?>
+                        <span class="nx-chip" data-page-tag="<?= $tagId ?>">
+                            <?= nexo_icon('tag') ?><?= esc($tag['name'] ?? $tag) ?>
+                            <?php if ($canEdit && $tagId > 0): ?>
+                                <button class="nx-chip__remove" type="button" data-tag-remove="<?= $tagId ?>" aria-label="Quitar etiqueta <?= esc($tag['name'] ?? $tag, 'attr') ?>">
+                                    <?= nexo_icon('x') ?>
+                                </button>
+                            <?php endif ?>
+                        </span>
                     <?php endforeach ?>
                     <?php if (($page['tags'] ?? []) === []): ?>
-                        <span class="nx-hint">Sin etiquetas todavía.</span>
+                        <span class="nx-hint" data-tags-empty>Sin etiquetas todavía.</span>
                     <?php endif ?>
                 </div>
+                <?php if ($canEdit): ?>
+                    <form class="nx-tag-form" data-tag-form>
+                        <label class="nx-sr-only" for="nx-tag-input">Nueva etiqueta</label>
+                        <input class="nx-input nx-input--sm" id="nx-tag-input" type="text" maxlength="80" placeholder="Añadir etiqueta" data-tag-input>
+                        <button class="nx-btn nx-btn--secondary nx-btn--sm" type="submit"><?= nexo_icon('plus') ?> Añadir</button>
+                    </form>
+                <?php endif ?>
             </div>
 
             <div class="nx-aside-section">

@@ -92,6 +92,23 @@ $routes->group('api/v1', [
         $routes->delete('tasks/(:num)', 'TaskController::delete/$1');
     }
 
+    if (class_exists(\App\Controllers\Api\V1\CommentController::class)) {
+        $routes->get('comments', 'CommentController::index');
+        $routes->post('comments', 'CommentController::create');
+        $routes->delete('comments/(:num)', 'CommentController::delete/$1');
+    }
+
+    if (class_exists(\App\Controllers\Api\V1\TagController::class)) {
+        $routes->get('tags', 'TagController::index');
+        $routes->post('tags', 'TagController::attach');
+        $routes->delete('tags/(:num)', 'TagController::detach/$1');
+    }
+
+    if (class_exists(\App\Controllers\Api\V1\AttachmentController::class)) {
+        $routes->post('attachments', 'AttachmentController::create');
+        $routes->get('attachments/(:num)', 'AttachmentController::file/$1');
+    }
+
     // Contrato reservado del chat y documentos (A). Se publican cuando el
     // controlador de la fase IA exista; mientras tanto la ruta no se registra.
     if (class_exists(\App\Controllers\Api\V1\AIChatController::class)) {

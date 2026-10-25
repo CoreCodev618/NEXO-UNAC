@@ -36,7 +36,7 @@ final class RagService
     }
 
     /**
-     * @param array{curso_id?: int, class_date?: string, topic?: string, doc_id?: int} $filters
+     * @param array{curso_id?: int, class_date?: string, topic?: string, doc_id?: int, page_id?: int, workspace_id?: int, workspace_ids?: list<int>} $filters
      *
      * @return list<array<string, mixed>>
      */
@@ -45,6 +45,19 @@ final class RagService
         $query = trim($query);
         if ($query === '') {
             throw new RuntimeException('La consulta del RAG no puede estar vacía.');
+        }
+
+        $workspaceId  = (int) ($filters['workspace_id'] ?? 0);
+        $workspaceIds = array_values(array_filter(
+            array_map('intval', (array) ($filters['workspace_ids'] ?? [])),
+            static fn (int $id): bool => $id > 0
+        ));
+        $pageId = (int) ($filters['page_id'] ?? 0);
+
+        // Defensa en profundidad: nunca se consulta el corpus global. El chat
+        // siempre debe acotar a una página o a los espacios del usuario.
+        if ($workspaceId <= 0 && $workspaceIds === [] && $pageId <= 0) {
+            throw new RuntimeException('La consulta RAG requiere un espacio o una página.');
         }
 
         $limit = max(1, min(10, $topK ?? $this->topK));
@@ -63,6 +76,19 @@ final class RagService
         if (($filters['doc_id'] ?? 0) > 0) {
             $args[] = '--doc-id';
             $args[] = (string) (int) $filters['doc_id'];
+        }
+
+        if ($pageId > 0) {
+            $args[] = '--page-id';
+            $args[] = (string) $pageId;
+        }
+
+        if ($workspaceId > 0) {
+            $args[] = '--workspace-id';
+            $args[] = (string) $workspaceId;
+        } elseif ($workspaceIds !== []) {
+            $args[] = '--workspace-ids';
+            $args[] = implode(',', $workspaceIds);
         }
 
         $date = trim((string) ($filters['class_date'] ?? ''));
@@ -116,7 +142,7 @@ final class RagService
     /**
      * Ingesta un archivo ya guardado. El `doc_id` debe ser el `documents.id`.
      *
-     * @param array{curso_id?: int, class_date?: string, topic?: string} $meta
+     * @param array{curso_id?: int, class_date?: string, topic?: string, page_id?: int, workspace_id?: int} $meta
      *
      * @return array{chunks: int, output: string}
      */
@@ -140,6 +166,18 @@ final class RagService
             '--curso-id',
             (string) $cursoId,
         ];
+
+        $pageId = (int) ($meta['page_id'] ?? 0);
+        if ($pageId > 0) {
+            $args[] = '--page-id';
+            $args[] = (string) $pageId;
+        }
+
+        $workspaceId = (int) ($meta['workspace_id'] ?? 0);
+        if ($workspaceId > 0) {
+            $args[] = '--workspace-id';
+            $args[] = (string) $workspaceId;
+        }
 
         $date = trim((string) ($meta['class_date'] ?? ''));
         if ($date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1) {
@@ -171,13 +209,130 @@ final class RagService
     }
 
     /**
-     * Convierte hits de Qdrant en fuentes para el chat.
+     * ¿Está configurado el camino vectorial real? La demo puede funcionar sin
+     * él gracias a `localRetrieve()` y al fallback del chat.
+     */
+    public function isConfigured(): bool
+    {
+        if (env('RAG_INGEST_ENABLED', 'true') === 'false') {
+            return false;
+        }
+
+        if (! $this->runner->isAvailable()) {
+            return false;
+        }
+
+        $qdrant = trim((string) env('QDRANT_URL', ''));
+        $gemini = trim((string) env('GEMINI_API_KEY', ''));
+
+        if ($qdrant === '' || $gemini === '') {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Retrieval léxico local sobre `document_chunks`.
      *
-     * @param list<array<string, mixed>> $hits
+     * Es el fallback de la demo cuando Qdrant/Gemini no están configurados.
+     * No sustituye al retrieval semántico, pero permite probar el flujo
+     * completo (pregunta -> evidencia -> cita) sin claves ni servicios.
+     *
+     * @param list<int> $workspaceIds
      *
      * @return list<array<string, mixed>>
      */
-    public function citations(array $hits): array
+    public function localRetrieve(string $query, array $workspaceIds, ?int $topK = null): array
+    {
+        $query = trim($query);
+        $ids   = array_values(array_unique(array_filter(
+            array_map('intval', $workspaceIds),
+            static fn (int $id): bool => $id > 0
+        )));
+
+        if ($query === '' || $ids === []) {
+            return [];
+        }
+
+        $tokens = $this->queryTokens($query);
+        if ($tokens === []) {
+            return [];
+        }
+
+        try {
+            $sql = 'SELECT dc.content, dc.chunk_index, d.id AS doc_id, d.title,
+                           d.file_path, d.page_id, d.workspace_id, d.topic, d.class_date
+                    FROM document_chunks dc
+                    INNER JOIN documents d ON d.id = dc.document_id
+                    WHERE d.workspace_id IN (' . implode(',', $ids) . ')
+                      AND dc.content IS NOT NULL
+                      AND dc.content != ""
+                    LIMIT 800';
+            $rows = \Config\Database::connect()->query($sql)->getResultArray();
+        } catch (\Throwable $error) {
+            log_message('warning', 'Fallback RAG local no disponible: {error}', [
+                'error' => $error->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        $scored = [];
+        $queryLower = mb_strtolower($query, 'UTF-8');
+
+        foreach ($rows as $row) {
+            $text  = (string) ($row['content'] ?? '');
+            $title = (string) ($row['title'] ?? '');
+            $haystack = mb_strtolower($title . "\n" . $text, 'UTF-8');
+            $score = 0.0;
+
+            foreach ($tokens as $token => $weight) {
+                $occurrences = mb_substr_count($haystack, $token, 'UTF-8');
+                if ($occurrences > 0) {
+                    $score += ($weight * 2) + min(3, $occurrences);
+                }
+            }
+
+            if ($queryLower !== '' && mb_strpos($haystack, $queryLower, 0, 'UTF-8') !== false) {
+                $score += 5.0;
+            }
+
+            if ($score <= 0) {
+                continue;
+            }
+
+            $source = (string) ($row['file_path'] ?? '');
+            $scored[] = [
+                'score'        => round($score / max(1, count($tokens)), 6),
+                'doc_id'       => (int) ($row['doc_id'] ?? 0),
+                'workspace_id' => (int) ($row['workspace_id'] ?? 0),
+                'page_id'      => (int) ($row['page_id'] ?? 0),
+                'title'        => $title !== '' ? $title : 'Material del curso',
+                'source'       => $source,
+                'location'     => 'Fragmento ' . ((int) ($row['chunk_index'] ?? 0) + 1),
+                'topic'        => (string) ($row['topic'] ?? ''),
+                'chunk_key'    => (string) ($row['doc_id'] ?? '') . '-' . (string) ($row['chunk_index'] ?? ''),
+                'text'         => $text,
+                'snippet'      => mb_substr(preg_replace('/\s+/', ' ', $text) ?? $text, 0, 240),
+                'local'        => true,
+            ];
+        }
+
+        usort($scored, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+
+        return array_slice($scored, 0, max(1, min(10, $topK ?? $this->topK)));
+    }
+
+    /**
+     * Convierte hits de Qdrant en fuentes para el chat.
+     *
+     * @param list<array<string, mixed>> $hits
+     * @param list<int>                  $allowedWorkspaceIds
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function citations(array $hits, array $allowedWorkspaceIds = []): array
     {
         if ($hits === []) {
             return [];
@@ -185,6 +340,10 @@ final class RagService
 
         $hits = $this->uniqueHits($hits);
         $rows = $this->documentsById($hits);
+        $allowed = array_values(array_unique(array_filter(
+            array_map('intval', $allowedWorkspaceIds),
+            static fn (int $id): bool => $id > 0
+        )));
         $out  = [];
 
         foreach ($hits as $hit) {
@@ -196,20 +355,28 @@ final class RagService
                 $title = (string) ($hit['title'] ?? 'Material del curso');
             }
 
-            $pageId = (int) ($row['page_id'] ?? 0);
+            $pageId      = (int) ($row['page_id'] ?? $hit['page_id'] ?? 0);
+            $workspaceId = (int) ($row['workspace_id'] ?? $hit['workspace_id'] ?? 0);
+
+            // Defensa final: una cita de un espacio no permitido se descarta.
+            if ($allowed !== [] && ($workspaceId <= 0 || ! in_array($workspaceId, $allowed, true))) {
+                continue;
+            }
+
             $source = (string) ($row['file_path'] ?? $hit['source'] ?? '');
 
             $out[] = [
-                'doc_id'    => $docId,
-                'title'     => $title,
-                'page_id'   => $pageId > 0 ? $pageId : null,
-                'url'       => $pageId > 0 ? $this->pageUrl($pageId) : null,
-                'source'    => $source !== '' ? basename($source) : null,
-                'location'  => $hit['location'] ?? null,
-                'topic'     => $hit['topic'] ?? null,
-                'score'     => $hit['score'] ?? null,
-                'snippet'   => $hit['snippet'] ?? null,
-                'chunk_key' => $hit['chunk_key'] ?? null,
+                'doc_id'       => $docId,
+                'workspace_id' => $workspaceId > 0 ? $workspaceId : null,
+                'title'        => $title,
+                'page_id'      => $pageId > 0 ? $pageId : null,
+                'url'          => $pageId > 0 ? $this->pageUrl($pageId) : null,
+                'source'       => $source !== '' ? basename($source) : null,
+                'location'     => $hit['location'] ?? null,
+                'topic'        => $hit['topic'] ?? null,
+                'score'        => $hit['score'] ?? null,
+                'snippet'      => $hit['snippet'] ?? null,
+                'chunk_key'    => $hit['chunk_key'] ?? null,
             ];
         }
 
@@ -301,16 +468,45 @@ final class RagService
         $title  = $source !== '' ? pathinfo(basename($source), PATHINFO_FILENAME) : 'Material del curso';
 
         return [
-            'score'     => round((float) ($hit['score'] ?? 0.0), 6),
-            'doc_id'    => (int) ($payload['doc_id'] ?? 0),
-            'title'     => $title,
-            'source'    => $source,
-            'location'  => trim((string) ($payload['location'] ?? '')),
-            'topic'     => trim((string) ($payload['topic'] ?? '')),
-            'chunk_key' => trim((string) ($payload['chunk_key'] ?? '')),
-            'text'      => $text,
-            'snippet'   => mb_substr(preg_replace('/\s+/', ' ', $text) ?? $text, 0, 240),
+            'score'        => round((float) ($hit['score'] ?? 0.0), 6),
+            'doc_id'       => (int) ($payload['doc_id'] ?? 0),
+            'workspace_id' => (int) ($payload['workspace_id'] ?? 0),
+            'page_id'      => (int) ($payload['page_id'] ?? 0),
+            'title'        => $title,
+            'source'       => $source,
+            'location'     => trim((string) ($payload['location'] ?? '')),
+            'topic'        => trim((string) ($payload['topic'] ?? '')),
+            'chunk_key'    => trim((string) ($payload['chunk_key'] ?? '')),
+            'text'         => $text,
+            'snippet'      => mb_substr(preg_replace('/\s+/', ' ', $text) ?? $text, 0, 240),
         ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function queryTokens(string $query): array
+    {
+        $stopwords = [
+            'a', 'al', 'algo', 'como', 'con', 'de', 'del', 'el', 'en', 'es', 'esa',
+            'ese', 'esta', 'este', 'for', 'la', 'las', 'lo', 'los', 'más', 'me',
+            'mi', 'no', 'o', 'para', 'pero', 'por', 'que', 'qué', 'se', 'sin',
+            'sobre', 'su', 'sus', 'un', 'una', 'uno', 'y', 'ya', 'the', 'and',
+            'what', 'how', 'where', 'when', 'why', 'is', 'are', 'to', 'of', 'in',
+        ];
+
+        $parts = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($query, 'UTF-8')) ?: [];
+        $tokens = [];
+
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '' || mb_strlen($part, 'UTF-8') < 3 || in_array($part, $stopwords, true)) {
+                continue;
+            }
+            $tokens[$part] = ($tokens[$part] ?? 0) + 1;
+        }
+
+        return $tokens;
     }
 
     /**
@@ -339,7 +535,7 @@ final class RagService
         try {
             $rows = \Config\Database::connect()
                 ->table('documents')
-                ->select('id, title, file_path, page_id, curso_id, class_date, topic')
+                ->select('id, title, file_path, page_id, workspace_id, curso_id, class_date, topic')
                 ->whereIn('id', $ids)
                 ->get()
                 ->getResultArray();

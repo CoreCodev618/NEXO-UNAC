@@ -51,6 +51,11 @@ class PageController extends BaseWebController
                     throw PageNotFoundException::forPageNotFound('No tienes espacios disponibles.');
                 }
                 $workspaceId = (int) $first['id'];
+                $workspace   = $first;
+            }
+
+            if (empty($workspace['can_edit'])) {
+                throw PageNotFoundException::forPageNotFound('No tienes permiso para crear páginas en este espacio.');
             }
 
             $page = $this->repository()->newPage($workspaceId, $userId);

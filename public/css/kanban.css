@@ -430,3 +430,12 @@
     opacity: 0.7;
   }
 }
+
+.nx-board[data-readonly="1"] .nx-task__title,
+.nx-board[data-readonly="1"] .nx-task__menu-btn {
+  pointer-events: none;
+}
+
+.nx-board[data-readonly="1"] .nx-task {
+  cursor: default;
+}

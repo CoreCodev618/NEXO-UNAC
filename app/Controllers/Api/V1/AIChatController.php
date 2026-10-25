@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api\V1;
 
-use App\Libraries\FrontendDemo;
 use App\Libraries\GroqService;
 use App\Libraries\RagService;
+use App\Libraries\WorkspaceAccess;
 use CodeIgniter\HTTP\ResponseInterface;
 use RuntimeException;
 
@@ -33,13 +33,27 @@ final class AIChatController extends BaseApiController
             return $this->error('La pregunta es demasiado larga (máximo 1200 caracteres).', 422);
         }
 
-        $user      = auth()->user();
-        $userId    = (int) $user->id;
-        $pageId    = $this->positiveInt($payload['page_id'] ?? null);
-        $sessionId = $this->positiveInt($payload['session_id'] ?? null);
+        $userId      = (int) auth()->id();
+        $access      = new WorkspaceAccess();
+        $pageId      = $this->positiveInt($payload['page_id'] ?? null);
+        $sessionId   = $this->positiveInt($payload['session_id'] ?? null);
+        $workspaceIds = $access->workspaceIds($userId);
+
+        if ($workspaceIds === []) {
+            return $this->error('No perteneces a ningún espacio con material.', 403);
+        }
+
+        // La autorización ocurre ANTES de crear o tocar una sesión. Si la
+        // página no existe o no es del usuario, no se escribe nada en BD.
+        if ($pageId !== null && ! $access->canViewPage($pageId, $userId)) {
+            return $this->error('No tienes acceso al contexto de esta página.', 403);
+        }
 
         try {
             $session = $this->resolveSession($sessionId, $userId, $pageId, $message);
+            $pageId  = isset($session['page_id']) && $session['page_id'] !== null
+                ? (int) $session['page_id']
+                : $pageId;
         } catch (RuntimeException $error) {
             return $this->error($error->getMessage(), 404);
         } catch (\Throwable $error) {
@@ -48,51 +62,76 @@ final class AIChatController extends BaseApiController
             return $this->error('No se pudo iniciar la conversación. Revisa la base de datos.', 500);
         }
 
-        try {
-            $pageContext = $pageId !== null ? $this->pageContext($pageId, $userId) : null;
-        } catch (RuntimeException $error) {
-            return $this->error($error->getMessage(), 403);
-        } catch (\Throwable $error) {
-            log_message('warning', 'No se pudo leer el contexto de la página {page}: {error}', [
-                'page'  => $pageId,
-                'error' => $error->getMessage(),
-            ]);
-            $pageContext = null;
+        if ($pageId !== null && ! $access->canViewPage($pageId, $userId)) {
+            return $this->error('No tienes acceso al contexto de esta página.', 403);
         }
 
-        $rag       = new RagService();
-        $hits      = [];
-        $ragError  = null;
+        $pageContext = $pageId !== null ? $this->pageContext($pageId, $userId) : null;
+        $workspaceId = $pageId !== null ? $access->pageWorkspaceId($pageId) : null;
 
-        try {
-            $hits = $rag->retrieve($message);
-        } catch (\Throwable $error) {
-            $ragError = $error->getMessage();
-            log_message('warning', 'RAG retrieval falló: {error}', ['error' => $ragError]);
+        $rag        = new RagService();
+        $hits       = [];
+        $ragError   = null;
+        $localHits  = false;
+
+        if ($rag->isConfigured()) {
+            try {
+                $hits = $rag->retrieve($message, $workspaceId !== null
+                    ? ['workspace_id' => $workspaceId, 'page_id' => $pageId]
+                    : ['workspace_ids' => $workspaceIds]);
+            } catch (\Throwable $error) {
+                $ragError = $error->getMessage();
+                log_message('warning', 'RAG vectorial falló: {error}', ['error' => $ragError]);
+            }
+        } else {
+            $ragError = 'Qdrant/Gemini no configurados en este entorno.';
         }
 
-        $citations = $rag->citations($hits);
+        // Fallback local: la demo sigue respondiendo con evidencia de MariaDB
+        // y citas verificables aunque no haya claves ni Qdrant.
+        if ($hits === []) {
+            $hits      = $rag->localRetrieve($message, $workspaceIds);
+            $localHits = $hits !== [];
+        }
+
+        // Última barrera: descarta cualquier cita fuera de los espacios del
+        // usuario, incluso si el motor vectorial devolviera un payload sucio.
+        $hits = array_values(array_filter($hits, static function (array $hit) use ($workspaceIds, $pageId): bool {
+            $hitWorkspace = (int) ($hit['workspace_id'] ?? 0);
+            $hitPage      = (int) ($hit['page_id'] ?? 0);
+
+            if ($hitWorkspace <= 0 || ! in_array($hitWorkspace, $workspaceIds, true)) {
+                return false;
+            }
+
+            return $pageId === null || $hitPage === $pageId;
+        }));
+
+        $citations = $rag->citations($hits, $workspaceIds);
         $context   = $rag->buildContext($hits, $pageContext);
         $model     = null;
+        $degraded  = $ragError !== null || $localHits;
 
         if ($context === '') {
             $reply = $ragError !== null
-                ? 'No pude consultar el material en este momento. Revisa que Qdrant y las claves del RAG estén activas, o vuelve a intentar en unos segundos.'
+                ? 'No pude consultar el material en este momento. La página actual sí está disponible, pero no encontré material indexado para tu pregunta. Intenta de nuevo o sube el archivo de la clase.'
                 : 'No encontré material indexado para responder eso. Sube el PDF, DOCX o PPTX de la clase en «Material para el tutor» y vuelve a preguntar.';
         } else {
             try {
                 $answer = (new GroqService())->chat(
-                    $this->prompt($message, $context, $ragError !== null, (int) $session['id']),
+                    $this->prompt($message, $context, $ragError !== null, (int) $session['id'], $localHits),
                 );
                 $reply  = $answer['content'];
                 $model  = $answer['model'];
             } catch (\Throwable $error) {
-                log_message('error', 'Groq no respondió: {error}', ['error' => $error->getMessage()]);
+                // Sin GROQ_API_KEY (o con cuota agotada) la demo no se cae:
+                // responde con extractos y citas del material recuperado.
+                log_message('warning', 'Groq no respondió; se usa respuesta local: {error}', [
+                    'error' => $error->getMessage(),
+                ]);
 
-                return $this->error(
-                    'El tutor no está disponible en este momento. Intenta de nuevo en unos segundos.',
-                    503,
-                );
+                $reply    = $this->fallbackReply($message, $hits, $pageContext);
+                $degraded = true;
             }
         }
 
@@ -104,7 +143,8 @@ final class AIChatController extends BaseApiController
             'sources'    => $citations,
             'model'      => $model,
             'page_id'    => $pageId,
-            'degraded'   => $ragError !== null,
+            'degraded'   => $degraded,
+            'retrieval'  => $localHits ? 'local' : ($hits !== [] ? 'vector' : 'none'),
         ]);
     }
 
@@ -126,15 +166,15 @@ final class AIChatController extends BaseApiController
                 throw new RuntimeException('La conversación no existe o no te pertenece.');
             }
 
-            return $session;
-        }
+            $sessionPage = isset($session['page_id']) && $session['page_id'] !== null
+                ? (int) $session['page_id']
+                : null;
 
-        // En la demo previa al merge de B, algunas páginas visibles todavía
-        // viven en FrontendDemo y no existen en MariaDB. La FK de
-        // chat_sessions.page_id no permite guardarlas: la sesión se crea sin
-        // página, pero el contexto sigue saliendo del fallback de desarrollo.
-        if ($pageId !== null && ! $this->pageExists($pageId)) {
-            $pageId = null;
+            if ($pageId !== null && $sessionPage !== null && $pageId !== $sessionPage) {
+                throw new RuntimeException('La conversación pertenece a otra página.');
+            }
+
+            return $session;
         }
 
         $db->table('chat_sessions')->insert([
@@ -158,60 +198,43 @@ final class AIChatController extends BaseApiController
     }
 
     /**
-     * Contexto de la página: MariaDB si ya existe el backend; FrontendDemo
-     * solo en desarrollo para que la demo funcione antes del merge de B.
+     * Contexto de la página actual. Solo MariaDB; no hay datos de demo que
+     * puedan saltarse la autorización.
      *
-     * @return array{title: string, text: string}|null
+     * @return array{title: string, text: string}
      */
-    private function pageContext(int $pageId, int $userId): ?array
+    private function pageContext(int $pageId, int $userId): array
     {
-        try {
-            $db   = \Config\Database::connect();
-            $page = $db->table('pages')
-                ->where('id', $pageId)
-                ->where('deleted_at', null)
-                ->get()
-                ->getRowArray();
+        $db   = \Config\Database::connect();
+        $page = $db->table('pages')
+            ->where('id', $pageId)
+            ->where('deleted_at', null)
+            ->get()
+            ->getRowArray();
 
-            if ($page !== null) {
-                $member = $db->table('workspace_members')
-                    ->where('workspace_id', (int) $page['workspace_id'])
-                    ->where('user_id', $userId)
-                    ->countAllResults();
-
-                if ($member === 0) {
-                    throw new RuntimeException('No tienes acceso al contexto de esta página.');
-                }
-
-                $blocks = $db->table('blocks')
-                    ->where('page_id', $pageId)
-                    ->orderBy('order_index', 'ASC')
-                    ->get()
-                    ->getResultArray();
-
-                return [
-                    'title' => (string) ($page['title'] ?? 'Página'),
-                    'text'  => $this->blocksText($blocks),
-                ];
-            }
-        } catch (RuntimeException $error) {
-            throw $error;
-        } catch (\Throwable $error) {
-            log_message('warning', 'Contexto de página desde MariaDB falló: {error}', ['error' => $error->getMessage()]);
+        if ($page === null) {
+            throw new RuntimeException('La página no existe.');
         }
 
-        if (ENVIRONMENT !== 'production') {
-            $demo = FrontendDemo::page($pageId);
+        $member = $db->table('workspace_members')
+            ->where('workspace_id', (int) $page['workspace_id'])
+            ->where('user_id', $userId)
+            ->countAllResults();
 
-            if ($demo !== null) {
-                return [
-                    'title' => (string) ($demo['title'] ?? 'Página'),
-                    'text'  => $this->blocksText(is_array($demo['blocks'] ?? null) ? $demo['blocks'] : []),
-                ];
-            }
+        if ($member === 0) {
+            throw new RuntimeException('No tienes acceso al contexto de esta página.');
         }
 
-        return null;
+        $blocks = $db->table('blocks')
+            ->where('page_id', $pageId)
+            ->orderBy('order_index', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        return [
+            'title' => (string) ($page['title'] ?? 'Página'),
+            'text'  => $this->blocksText($blocks),
+        ];
     }
 
     /**
@@ -288,7 +311,7 @@ final class AIChatController extends BaseApiController
     /**
      * @return list<array{role: string, content: string}>
      */
-    private function prompt(string $message, string $context, bool $degraded, int $sessionId): array
+    private function prompt(string $message, string $context, bool $externalFailed, int $sessionId, bool $localEvidence = false): array
     {
         $system = <<<'PROMPT'
 Eres el Tutor NEXO de la Universidad Nacional del Callao. Ayudas a estudiantes de FIIS a estudiar con el material de sus cursos.
@@ -303,8 +326,10 @@ Reglas obligatorias:
 7. La PÁGINA ACTUAL es el apunte que el estudiante está editando; puedes resumirla o explicarla sin citarla como fuente externa.
 PROMPT;
 
-        if ($degraded) {
-            $system .= "\n8. El retrieval de material falló en esta petición: no cites fragmentos externos.";
+        if ($localEvidence) {
+            $system .= "\n8. El material recuperado proviene del índice local de la demo; puedes citarlo con [1], [2], etc.";
+        } elseif ($externalFailed) {
+            $system .= "\n8. El retrieval vectorial falló en esta petición: no cites fragmentos externos.";
         }
 
         $messages = [
@@ -321,6 +346,62 @@ PROMPT;
         ];
 
         return $messages;
+    }
+
+    /**
+     * Respuesta determinista cuando Groq no está disponible. No inventa: solo
+     * presenta los extractos recuperados y la página actual.
+     *
+     * @param list<array<string, mixed>> $hits
+     * @param array{title: string, text: string}|null $pageContext
+     */
+    private function fallbackReply(string $message, array $hits, ?array $pageContext): string
+    {
+        $lines = [];
+        $seen  = [];
+        $count = 0;
+
+        foreach ($hits as $hit) {
+            $docId = (int) ($hit['doc_id'] ?? 0);
+            $key   = $docId > 0 ? 'doc:' . $docId : 'src:' . ($hit['source'] ?? '');
+
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $count++;
+
+            if ($count > 3) {
+                break;
+            }
+
+            $title = trim((string) ($hit['title'] ?? 'Material del curso'));
+            $text  = trim((string) ($hit['text'] ?? ''));
+            $text  = preg_replace('/\s+/', ' ', $text) ?? $text;
+
+            if ($text !== '') {
+                $lines[] = '[' . $count . '] ' . $title . "\n" . mb_substr($text, 0, 420);
+            }
+        }
+
+        $pageText = trim((string) ($pageContext['text'] ?? ''));
+
+        if ($lines === [] && $pageText === '') {
+            return 'Con la información disponible no puedo confirmar eso. Sube el material de la clase y vuelve a preguntar.';
+        }
+
+        $reply = "El tutor generativo no está configurado en este entorno, así que respondo con el material recuperado.\n\n";
+
+        if ($lines !== []) {
+            $reply .= implode("\n\n", $lines);
+            $reply .= "\n\nPuedes abrir las fuentes citadas para leer el contexto completo.";
+        } else {
+            $reply .= 'No encontré fragmentos externos para «' . mb_substr($message, 0, 160) . '». ';
+            $reply .= 'La página actual contiene material relacionado; revisa el contexto o sube el documento que falta.';
+        }
+
+        return $reply;
     }
 
     /**
@@ -382,15 +463,6 @@ PROMPT;
         } catch (\Throwable $error) {
             log_message('error', 'No se guardó el intercambio de chat: {error}', ['error' => $error->getMessage()]);
         }
-    }
-
-    private function pageExists(int $pageId): bool
-    {
-        return \Config\Database::connect()
-            ->table('pages')
-            ->where('id', $pageId)
-            ->where('deleted_at', null)
-            ->countAllResults() > 0;
     }
 
     private function positiveInt(mixed $value): ?int

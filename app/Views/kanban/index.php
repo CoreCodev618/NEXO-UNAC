@@ -10,6 +10,7 @@
  * @var bool   $isPreview
  */
 $workspaceId = (int) $workspace['id'];
+$canEdit = (bool) ($workspace['can_edit'] ?? true);
 $grouped = ['todo' => [], 'doing' => [], 'done' => []];
 
 foreach ($tasks as $task) {
@@ -40,10 +41,12 @@ $doneCount = count($grouped['done']);
                 <?= nexo_icon('calendar') ?>
                 Calendario
             </a>
-            <button class="nx-btn nx-btn--primary" type="button" data-task-new>
-                <?= nexo_icon('plus') ?>
-                Nueva tarea
-            </button>
+            <?php if ($canEdit): ?>
+                <button class="nx-btn nx-btn--primary" type="button" data-task-new>
+                    <?= nexo_icon('plus') ?>
+                    Nueva tarea
+                </button>
+            <?php endif ?>
         </div>
     </header>
 
@@ -68,6 +71,8 @@ $doneCount = count($grouped['done']);
                 <span><?= nexo_icon('circle-help') ?><?= count($tasks) ?> tareas en total</span>
                 <?php if ($isPreview): ?>
                     <span><?= nexo_icon('info') ?> Los cambios se quedan en esta vista demo</span>
+                <?php elseif (! $canEdit): ?>
+                    <span><?= nexo_icon('lock') ?> Solo lectura: tu rol no permite editar tareas</span>
                 <?php endif ?>
             </div>
         </div>
@@ -99,7 +104,7 @@ $doneCount = count($grouped['done']);
         </div>
     </div>
 
-    <div class="nx-board" data-board data-workspace-id="<?= $workspaceId ?>">
+    <div class="nx-board" data-board data-workspace-id="<?= $workspaceId ?>" data-readonly="<?= $canEdit ? '0' : '1' ?>">
         <?php foreach ($columns as $status => $label): ?>
             <?php $columnTasks = $grouped[$status]; ?>
             <section class="nx-board__col" data-status="<?= esc($status, 'attr') ?>" aria-labelledby="nx-board-<?= esc($status, 'attr') ?>">
@@ -107,11 +112,13 @@ $doneCount = count($grouped['done']);
                     <span class="nx-board__dot" aria-hidden="true"></span>
                     <h2 class="nx-board__title" id="nx-board-<?= esc($status, 'attr') ?>"><?= esc($label) ?></h2>
                     <span class="nx-board__count" data-board-count><?= count($columnTasks) ?></span>
-                    <div class="nx-board__head-actions">
-                        <button class="nx-icon-btn nx-icon-btn--sm" type="button" data-task-new data-task-status="<?= esc($status, 'attr') ?>" aria-label="Nueva tarea en <?= esc($label, 'attr') ?>" data-tip="Nueva tarea">
-                            <?= nexo_icon('plus') ?>
-                        </button>
-                    </div>
+                    <?php if ($canEdit): ?>
+                        <div class="nx-board__head-actions">
+                            <button class="nx-icon-btn nx-icon-btn--sm" type="button" data-task-new data-task-status="<?= esc($status, 'attr') ?>" aria-label="Nueva tarea en <?= esc($label, 'attr') ?>" data-tip="Nueva tarea">
+                                <?= nexo_icon('plus') ?>
+                            </button>
+                        </div>
+                    <?php endif ?>
                 </header>
 
                 <div class="nx-board__list" data-board-list data-status="<?= esc($status, 'attr') ?>">
@@ -194,19 +201,21 @@ $doneCount = count($grouped['done']);
                     </div>
                 </div>
 
-                <div class="nx-board__foot">
-                    <button class="nx-board__add" type="button" data-task-new data-task-status="<?= esc($status, 'attr') ?>">
-                        <?= nexo_icon('plus') ?>
-                        Añadir tarea
-                    </button>
-                </div>
+                <?php if ($canEdit): ?>
+                    <div class="nx-board__foot">
+                        <button class="nx-board__add" type="button" data-task-new data-task-status="<?= esc($status, 'attr') ?>">
+                            <?= nexo_icon('plus') ?>
+                            Añadir tarea
+                        </button>
+                    </div>
+                <?php endif ?>
             </section>
         <?php endforeach ?>
     </div>
 
     <p class="nx-hint" style="margin-top: 18px;">
-        <?= nexo_icon('grip-vertical') ?>
-        Arrastra las tarjetas entre columnas. El estado se guarda al soltar.
+        <?= nexo_icon($canEdit ? 'grip-vertical' : 'lock') ?>
+        <?= $canEdit ? 'Arrastra las tarjetas entre columnas. El estado se guarda al soltar.' : 'Puedes consultar las tareas y abrir sus páginas, pero no moverlas ni editarlas.' ?>
     </p>
 </div>
 
