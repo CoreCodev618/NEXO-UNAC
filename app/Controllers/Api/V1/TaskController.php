@@ -23,7 +23,7 @@ final class TaskController extends BaseApiController
         $data        = $this->payload();
         $workspaceId = (int) ($data['workspace_id'] ?? 0);
 
-        if ($guard = $this->guardWorkspace($workspaceId)) {
+        if ($guard = $this->guardWorkspace($workspaceId, 'edit')) {
             return $guard;
         }
 
@@ -88,7 +88,7 @@ final class TaskController extends BaseApiController
             return $this->error('Tarea no encontrada.', 404);
         }
 
-        if ($guard = $this->guardWorkspace((int) $task['workspace_id'])) {
+        if ($guard = $this->guardWorkspace((int) $task['workspace_id'], 'edit')) {
             return $guard;
         }
 
@@ -164,7 +164,7 @@ final class TaskController extends BaseApiController
             return $this->error('Tarea no encontrada.', 404);
         }
 
-        if ($guard = $this->guardWorkspace((int) $task['workspace_id'])) {
+        if ($guard = $this->guardWorkspace((int) $task['workspace_id'], 'edit')) {
             return $guard;
         }
 
@@ -228,7 +228,7 @@ final class TaskController extends BaseApiController
             return $this->error('Tarea no encontrada.', 404);
         }
 
-        if ($guard = $this->guardWorkspace((int) $task['workspace_id'])) {
+        if ($guard = $this->guardWorkspace((int) $task['workspace_id'], 'edit')) {
             return $guard;
         }
 

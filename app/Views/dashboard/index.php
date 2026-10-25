@@ -57,7 +57,7 @@ $firstName = explode(' ', trim((string) $user['name']))[0] ?? 'estudiante';
                         <span class="nx-continue-card__meta">
                             <span><?= nexo_icon($featured['workspace_icon'] ?? 'folder') ?><?= esc($featured['workspace_name'] ?? 'Espacio') ?></span>
                             <?php if (! empty($featured['tags'])): ?>
-                                <span><?= nexo_icon('tag') ?><?= esc(implode(' · ', $featured['tags'])) ?></span>
+                                <span><?= nexo_icon('tag') ?><?= esc(implode(' · ', array_map(static fn ($tag) => is_array($tag) ? ($tag['name'] ?? '') : (string) $tag, $featured['tags']))) ?></span>
                             <?php endif ?>
                         </span>
                     </span>
@@ -89,7 +89,7 @@ $firstName = explode(' ', trim((string) $user['name']))[0] ?? 'estudiante';
                                     <span><?= nexo_icon($page['workspace_icon'] ?? 'folder') ?><?= esc($page['workspace_name'] ?? 'Espacio') ?></span>
                                     <span><?= nexo_icon('clock') ?><?= esc(nexo_datetime($page['updated_at'] ?? null)) ?></span>
                                     <?php if (! empty($page['tags'])): ?>
-                                        <span><?= nexo_icon('tag') ?><?= esc(implode(' · ', $page['tags'])) ?></span>
+                                        <span><?= nexo_icon('tag') ?><?= esc(implode(' · ', array_map(static fn ($tag) => is_array($tag) ? ($tag['name'] ?? '') : (string) $tag, $page['tags']))) ?></span>
                                     <?php endif ?>
                                 </span>
                             </span>

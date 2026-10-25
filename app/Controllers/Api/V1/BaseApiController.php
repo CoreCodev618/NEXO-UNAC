@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api\V1;
 
+use App\Libraries\WorkspaceAccess;
 use CodeIgniter\API\ResponseTrait;
 use CodeIgniter\Controller;
 use CodeIgniter\HTTP\Exceptions\BadRequestException;
@@ -74,25 +75,40 @@ abstract class BaseApiController extends Controller
     }
 
     /**
-     * Devuelve una respuesta 403 si el usuario no pertenece al workspace.
+     * Devuelve una respuesta 403 si el usuario no pertenece al workspace o si
+     * su rol no alcanza el mínimo pedido (view|edit|manage).
      * Devuelve null si tiene acceso.
      */
-    protected function guardWorkspace(int $workspaceId): ?ResponseInterface
+    protected function guardWorkspace(int $workspaceId, string $minimum = 'view'): ?ResponseInterface
     {
         if ($workspaceId <= 0) {
             return $this->error('workspace_id inválido.', 422, ['workspace_id' => 'Requerido.']);
         }
 
-        $count = db_connect()
-            ->table('workspace_members')
-            ->where('workspace_id', $workspaceId)
-            ->where('user_id', (int) auth()->id())
-            ->countAllResults();
+        $userId = (int) auth()->id();
+        $access = new WorkspaceAccess();
 
-        if ($count === 0) {
+        if (! $access->canView($workspaceId, $userId)) {
             return $this->error('No tienes acceso a este espacio.', 403);
         }
 
+        $minimum = match ($minimum) {
+            'manage' => WorkspaceAccess::ROLE_OWNER,
+            'edit'   => WorkspaceAccess::ROLE_EDITOR,
+            default  => WorkspaceAccess::ROLE_VIEWER,
+        };
+
+        if (! $access->atLeast($workspaceId, $userId, $minimum)) {
+            return $this->error('Tu rol en este espacio es de solo lectura.', 403, [
+                'role' => 'Se requiere un rol de editor o propietario.',
+            ]);
+        }
+
         return null;
+    }
+
+    protected function access(): WorkspaceAccess
+    {
+        return new WorkspaceAccess();
     }
 }

@@ -40,6 +40,7 @@ PAYLOAD_INDEXES: dict[str, str] = {
     "chunk_id": "integer",
     "doc_id": "integer",
     "page_id": "integer",
+    "workspace_id": "integer",
     "curso_id": "integer",
     "class_date": "keyword",
     "topic": "keyword",
@@ -101,13 +102,29 @@ def build_filter(
     class_date: str | None = None,
     topic: str | None = None,
     doc_id: int | None = None,
+    page_id: int | None = None,
+    workspace_id: int | None = None,
+    workspace_ids: list[int] | None = None,
 ) -> dict | None:
-    """Filtro Qdrant (`must`) para los campos indexados; None si no hay filtros."""
+    """Filtro Qdrant (`must`) para los campos indexados; None si no hay filtros.
+
+    `workspace_ids` permite acotar el chat global del dashboard a todos los
+    espacios donde el usuario es miembro. `workspace_id` y `page_id` acotan a
+    una página concreta.
+    """
     must: list[dict[str, Any]] = []
     if curso_id is not None:
         must.append({"key": "curso_id", "match": {"value": int(curso_id)}})
     if doc_id is not None:
         must.append({"key": "doc_id", "match": {"value": int(doc_id)}})
+    if page_id is not None:
+        must.append({"key": "page_id", "match": {"value": int(page_id)}})
+    if workspace_id is not None:
+        must.append({"key": "workspace_id", "match": {"value": int(workspace_id)}})
+    if workspace_ids is not None:
+        ids = sorted({int(item) for item in workspace_ids if int(item) > 0})
+        # Un usuario sin espacios no debe poder consultar el corpus global.
+        must.append({"key": "workspace_id", "match": {"any": ids}})
     if class_date:
         normalized_date = normalize_class_date(class_date)
         if normalized_date:
@@ -124,6 +141,8 @@ def payload_for_chunk(
     curso_id: int,
     class_date: str = "",
     topic: str = "",
+    page_id: int = 0,
+    workspace_id: int = 0,
 ) -> dict[str, Any]:
     """Payload indexable y autocontenido (para demo/retrieval) de un chunk."""
     source_key = getattr(chunk, "source_key", "") or chunk.source
@@ -132,7 +151,8 @@ def payload_for_chunk(
         "doc_id": int(chunk.doc_id),
         # doc_id puede superar 2^53: JS debe usar el string, no el Number.
         "doc_id_str": str(int(chunk.doc_id)),
-        "page_id": 0,
+        "page_id": int(page_id),
+        "workspace_id": int(workspace_id),
         "curso_id": int(curso_id),
         "class_date": normalize_class_date(class_date),
         "topic": topic or "",

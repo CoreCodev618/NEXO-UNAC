@@ -27,7 +27,10 @@ export function csrfHeaders() {
 export function refreshCsrf(response) {
   if (!response) return;
 
-  const bodyToken = response.headers.get?.('X-CSRF-TOKEN');
+  const bodyToken =
+    response.headers?.get?.('X-CSRF-TOKEN') ||
+    response.getResponseHeader?.('X-CSRF-TOKEN');
+
   if (bodyToken && tokenMeta) {
     tokenMeta.setAttribute('content', bodyToken);
   }

@@ -110,10 +110,12 @@ $currentWorkspaceUrl = $sidebarWorkspace !== null
                 <p class="nx-tree__more">Aún no hay páginas en este espacio.</p>
             <?php endif ?>
 
-            <a class="nx-nav__new" href="<?= esc(nexo_url($prefix, 'pages/nueva') . '?workspace=' . (int) ($sidebarWorkspace['id'] ?? 1), 'attr') ?>">
-                <?= nexo_icon('plus') ?>
-                <span>Nueva página</span>
-            </a>
+            <?php if ($sidebarWorkspace !== null && ! empty($sidebarWorkspace['can_edit'])): ?>
+                <a class="nx-nav__new" href="<?= esc(nexo_url($prefix, 'pages/nueva') . '?workspace=' . (int) $sidebarWorkspace['id'], 'attr') ?>">
+                    <?= nexo_icon('plus') ?>
+                    <span>Nueva página</span>
+                </a>
+            <?php endif ?>
         </div>
 
         <?php if ($sidebarWorkspace !== null): ?>

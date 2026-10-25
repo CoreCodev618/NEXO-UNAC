@@ -25,7 +25,7 @@ final class PageController extends BaseApiController
         $data        = $this->payload();
         $workspaceId = (int) ($data['workspace_id'] ?? 0);
 
-        if ($guard = $this->guardWorkspace($workspaceId)) {
+        if ($guard = $this->guardWorkspace($workspaceId, 'edit')) {
             return $guard;
         }
 
@@ -87,7 +87,7 @@ final class PageController extends BaseApiController
             return $this->error('Página no encontrada.', 404);
         }
 
-        if ($guard = $this->guardWorkspace((int) $page['workspace_id'])) {
+        if ($guard = $this->guardWorkspace((int) $page['workspace_id'], 'edit')) {
             return $guard;
         }
 

@@ -15,6 +15,18 @@ import { toast } from '../core/toast.js';
 let context = null;
 let lastFocus = null;
 
+function currentPageId() {
+  return Number(document.body.dataset.pageId || 0);
+}
+
+function isPreview() {
+  return document.body.dataset.preview === '1';
+}
+
+function canManage() {
+  return document.querySelector('[data-editor]')?.dataset.canManage === '1';
+}
+
 function setExpanded(open) {
   qsa('[data-context-toggle]').forEach((button) => button.setAttribute('aria-expanded', open ? 'true' : 'false'));
 }
@@ -97,7 +109,10 @@ function addCommentToList(comment) {
         <span class="nx-comment__time">Ahora</span>
       </div>
       <p class="nx-comment__text">${escapeHtml(comment.content || '')}</p>
-      <div class="nx-comment__actions"><button type="button" data-comment-reply>Responder</button></div>
+      <div class="nx-comment__actions">
+        <button type="button" data-comment-reply>Responder</button>
+        ${comment.id && (comment.mine || canManage()) ? `<button type="button" data-comment-delete="${Number(comment.id)}">Eliminar</button>` : ''}
+      </div>
     </div>
   `;
   list.appendChild(article);
@@ -110,8 +125,8 @@ function submitComment(form) {
   const content = String(input?.value || '').trim();
   if (!input || !content) return;
 
-  const pageId = Number(document.body.dataset.pageId || 0);
-  const preview = document.body.dataset.preview === '1';
+  const pageId = currentPageId();
+  const preview = isPreview();
 
   if (preview || !pageId) {
     addCommentToList({ content });
@@ -158,7 +173,99 @@ function normalizeComment(comment, fallbackContent) {
       'Tú',
     tone: comment?.tone || 'wine',
     initials: comment?.initials || '',
+    id: comment?.id || null,
+    mine: comment?.mine === true,
   };
+}
+
+function appendTagChip(tag) {
+  const container = qs('[data-page-tags]', context);
+  if (!container || !tag?.id) return;
+
+  if (qs(`[data-page-tag="${Number(tag.id)}"]`, container)) return;
+  qs('[data-tags-empty]', container)?.remove();
+
+  const chip = document.createElement('span');
+  chip.className = 'nx-chip';
+  chip.dataset.pageTag = String(Number(tag.id));
+  chip.innerHTML = `${icon('tag')}<span>${escapeHtml(tag.name || 'Etiqueta')}</span>
+    <button class="nx-chip__remove" type="button" data-tag-remove="${Number(tag.id)}" aria-label="Quitar etiqueta ${escapeHtml(tag.name || '')}">${icon('x')}</button>`;
+  container.appendChild(chip);
+}
+
+function submitTag(form) {
+  const input = qs('[data-tag-input]', form);
+  const button = qs('button[type="submit"]', form);
+  const name = String(input?.value || '').trim();
+  const pageId = currentPageId();
+
+  if (!input || !name) return;
+
+  if (isPreview() || !pageId) {
+    input.value = '';
+    toast.info('Etiqueta agregada solo a la vista de diseño; no se guardó.', 'Vista demo');
+    return;
+  }
+
+  button?.classList.add('is-loading');
+  if (button) button.disabled = true;
+
+  api.tags
+    .attach({ page_id: pageId, name })
+    .then((tag) => {
+      appendTagChip(tag);
+      input.value = '';
+      toast.success('Etiqueta añadida a la página.', 'Etiqueta guardada');
+    })
+    .catch((error) => toast.error(error.message || 'No se pudo guardar la etiqueta.'))
+    .finally(() => {
+      button?.classList.remove('is-loading');
+      if (button) button.disabled = false;
+    });
+}
+
+function deleteComment(button) {
+  const id = Number(button.dataset.commentDelete || 0);
+  const pageId = currentPageId();
+  if (!id || !pageId) return;
+
+  button.disabled = true;
+  api.comments
+    .remove(id)
+    .then(() => {
+      button.closest('.nx-comment')?.remove();
+      commentCount(-1);
+      toast.success('El comentario se eliminó.', 'Comentario eliminado');
+    })
+    .catch((error) => {
+      button.disabled = false;
+      toast.error(error.message || 'No se pudo eliminar el comentario.');
+    });
+}
+
+function removeTag(button) {
+  const id = Number(button.dataset.tagRemove || 0);
+  const pageId = currentPageId();
+  const chip = button.closest('[data-page-tag]');
+  if (!id || !pageId) return;
+
+  if (isPreview()) {
+    chip?.remove();
+    toast.info('Etiqueta quitada solo de la vista de diseño.', 'Vista demo');
+    return;
+  }
+
+  button.disabled = true;
+  api.tags
+    .detach(id, pageId)
+    .then(() => {
+      chip?.remove();
+      toast.success('Etiqueta quitada.', 'Etiqueta actualizada');
+    })
+    .catch((error) => {
+      button.disabled = false;
+      toast.error(error.message || 'No se pudo quitar la etiqueta.');
+    });
 }
 
 export function initContext() {
@@ -197,6 +304,11 @@ export function initContext() {
     submitComment(event.currentTarget);
   });
 
+  qs('[data-tag-form]', context)?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    submitTag(event.currentTarget);
+  });
+
   context.addEventListener('click', (event) => {
     const reply = event.target.closest('[data-comment-reply]');
     if (reply) {
@@ -204,13 +316,25 @@ export function initContext() {
       qs('[data-comment-input]', context)?.focus();
     }
 
+    const removeComment = event.target.closest('[data-comment-delete]');
+    if (removeComment) {
+      deleteComment(removeComment);
+    }
+
+    const removeTagButton = event.target.closest('[data-tag-remove]');
+    if (removeTagButton) {
+      removeTag(removeTagButton);
+    }
+
     const download = event.target.closest('[data-attachment-download]');
     if (download) {
-      event.preventDefault();
-      toast.info(
-        `«${download.dataset.attachmentDownload}» se descargará cuando el backend de archivos exponga la ruta.`,
-        'Descarga pendiente',
-      );
+      const url = download.dataset.attachmentUrl || '';
+      if (url && url !== '#') {
+        window.location.href = url;
+      } else {
+        event.preventDefault();
+        toast.warning('Este adjunto no tiene una ruta de descarga disponible.', 'Descarga no disponible');
+      }
     }
   });
 

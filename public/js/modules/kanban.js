@@ -208,7 +208,7 @@ function moveTask(task, status, orderIndex) {
 }
 
 function initSortable() {
-  if (!window.Sortable) return;
+  if (!window.Sortable || board?.dataset.readonly === '1') return;
 
   qsa('[data-board-list]', board).forEach((list) => {
     new window.Sortable(list, {

@@ -155,6 +155,8 @@ export const api = {
         });
 
         xhr.addEventListener('load', () => {
+          refreshCsrf(xhr);
+
           let payload = null;
           try {
             payload = JSON.parse(xhr.responseText || 'null');
@@ -182,8 +184,10 @@ export const api = {
   },
 
   documents: {
-    list() {
-      return request('/documents');
+    list(pageId) {
+      const id = Number(pageId || 0);
+      const query = id > 0 ? `?page_id=${encodeURIComponent(id)}` : '';
+      return request(`/documents${query}`);
     },
 
     upload(formData, onProgress) {

@@ -16,6 +16,19 @@ $error     = session('error');
         <p class="nx-auth__desc">Tus apuntes, tareas y el material del salón te están esperando.</p>
     </div>
 
+    <?php if (! $isPreview && filter_var(env('NEXO_DEMO_LOGIN', 'true'), FILTER_VALIDATE_BOOLEAN)): ?>
+        <div class="nx-demo-login" data-demo-login>
+            <div class="nx-demo-login__head">
+                <span class="nx-badge nx-badge--gold">Piloto</span>
+                <strong>Cuenta de demostración</strong>
+            </div>
+            <p>Para revisar el piloto sin crear datos: <code>demo@unac.edu.pe</code> · <code>NexoDemo2026!</code></p>
+            <button class="nx-btn nx-btn--secondary nx-btn--sm" type="button" data-demo-fill>
+                Rellenar credenciales
+            </button>
+        </div>
+    <?php endif ?>
+
     <?php if ($isPreview): ?>
         <div class="nx-alert nx-alert--warning" style="margin-bottom: 20px;">
             <?= nexo_icon('info') ?>

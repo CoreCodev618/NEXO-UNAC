@@ -568,3 +568,28 @@
     display: none;
   }
 }
+
+/* Citas del material ------------------------------------------------------ */
+
+.nx-msg__citation-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nx-msg__citation-main strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nx-msg__citation-main small {
+  overflow: hidden;
+  color: var(--muted-2);
+  font-size: 9px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

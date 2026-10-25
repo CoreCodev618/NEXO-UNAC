@@ -124,6 +124,25 @@ class BuildFilterTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             vectorstore.build_filter(class_date="2026-99-99")
 
+    def test_acota_por_pagina_y_workspace(self):
+        result = vectorstore.build_filter(page_id=7, workspace_id=3)
+        self.assertEqual(
+            result,
+            {
+                "must": [
+                    {"key": "page_id", "match": {"value": 7}},
+                    {"key": "workspace_id", "match": {"value": 3}},
+                ]
+            },
+        )
+
+    def test_workspace_ids_dedupe_y_ordena(self):
+        result = vectorstore.build_filter(workspace_ids=[3, 1, 3, 0, -2])
+        self.assertEqual(
+            result,
+            {"must": [{"key": "workspace_id", "match": {"any": [1, 3]}}]},
+        )
+
 
 class PayloadTest(unittest.TestCase):
     def _chunk(self) -> chunking.Chunk:
@@ -161,6 +180,13 @@ class PayloadTest(unittest.TestCase):
         self.assertEqual(payload["location"], "app/Config/Routes.php")
         self.assertIn("Routes.php", payload["text"])
         self.assertEqual(payload["page_id"], 0)
+
+    def test_incluye_ubicacion_academica(self):
+        payload = vectorstore.payload_for_chunk(
+            self._chunk(), curso_id=2, page_id=5, workspace_id=9
+        )
+        self.assertEqual(payload["page_id"], 5)
+        self.assertEqual(payload["workspace_id"], 9)
 
     def test_defaults_vacios(self):
         payload = vectorstore.payload_for_chunk(self._chunk(), curso_id=1)
