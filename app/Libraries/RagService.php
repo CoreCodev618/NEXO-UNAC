@@ -73,8 +73,7 @@ final class RagService
 
         $topic = trim((string) ($filters['topic'] ?? ''));
         if ($topic !== '') {
-            $args[] = '--topic';
-            $args[] = $topic;
+            $args[] = '--topic=' . $topic;
         }
 
         if ($this->minScore > 0) {
@@ -149,8 +148,7 @@ final class RagService
 
         $topic = trim((string) ($meta['topic'] ?? ''));
         if ($topic !== '') {
-            $args[] = '--topic';
-            $args[] = $topic;
+            $args[] = '--topic=' . $topic;
         }
 
         $result = $this->runner->run($args, $this->ingestTimeout);
@@ -168,6 +166,51 @@ final class RagService
             'chunks' => $chunks,
             'output' => $result['stdout'],
         ];
+    }
+
+    /**
+     * Descarta los hits de documentos subidos por otros usuarios en páginas a las
+     * que $userId no pertenece. Los doc_id que no existen en MariaDB (corpus
+     * histórico compartido) se conservan.
+     *
+     * @param list<array<string, mixed>> $hits
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function filterAccessible(array $hits, int $userId): array
+    {
+        if ($hits === []) {
+            return [];
+        }
+
+        $rows = $this->documentsById($hits);
+
+        if ($rows === []) {
+            return $hits;
+        }
+
+        $allowedPages = [];
+        foreach (\Config\Database::connect()
+            ->table('pages p')
+            ->select('p.id')
+            ->join('workspace_members m', 'm.workspace_id = p.workspace_id')
+            ->where('m.user_id', $userId)
+            ->where('p.deleted_at', null)
+            ->get()
+            ->getResultArray() as $page) {
+            $allowedPages[(int) $page['id']] = true;
+        }
+
+        return array_values(array_filter($hits, static function (array $hit) use ($rows, $allowedPages, $userId): bool {
+            $row = $rows[(int) ($hit['doc_id'] ?? 0)] ?? null;
+
+            if ($row === null) {
+                return true;
+            }
+
+            return (int) ($row['created_by'] ?? 0) === $userId
+                || isset($allowedPages[(int) ($row['page_id'] ?? 0)]);
+        }));
     }
 
     /**
@@ -339,7 +382,7 @@ final class RagService
         try {
             $rows = \Config\Database::connect()
                 ->table('documents')
-                ->select('id, title, file_path, page_id, curso_id, class_date, topic')
+                ->select('id, title, file_path, page_id, curso_id, class_date, topic, created_by')
                 ->whereIn('id', $ids)
                 ->get()
                 ->getResultArray();
@@ -361,7 +404,7 @@ final class RagService
 
     private function retrieveTimeout(): int
     {
-        return max(20, min(120, (int) env('RAG_TIMEOUT', 180)));
+        return max(10, min(120, (int) env('RAG_RETRIEVE_TIMEOUT', 30)));
     }
 
     /**
@@ -373,13 +416,14 @@ final class RagService
             return $prefix . ' El proceso tardó demasiado. Revisa Qdrant/Gemini o intenta con un archivo más pequeño.';
         }
 
-        $lines = preg_split('/\R/', $result['stderr']) ?: [];
-        $lines = array_values(array_filter(array_map('trim', $lines), static fn (string $line): bool => $line !== ''));
+        // El stderr de Python puede traer URLs de Qdrant, rutas locales o errores
+        // de Gemini: va al log, nunca al cliente.
+        log_message('error', '{prefix} stderr: {stderr}', [
+            'prefix' => $prefix,
+            'stderr' => mb_substr(trim($result['stderr']), -1000),
+        ]);
 
-        $last = $lines === [] ? '' : (string) end($lines);
-        $last = preg_replace('/^ERROR:\s*/i', '', $last) ?? $last;
-
-        return $prefix . ($last !== '' ? ' ' . mb_substr($last, 0, 300) : ' Revisa los logs de writable/logs.');
+        return $prefix . ' Revisa los logs de writable/logs.';
     }
 
     private function pageUrl(int $pageId): string

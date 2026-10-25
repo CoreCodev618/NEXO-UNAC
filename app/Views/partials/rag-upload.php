@@ -43,11 +43,11 @@ $maxMb    = max(1, min(100, (int) env('RAG_MAX_UPLOAD_MB', 20)));
         <label class="nx-rag__dropzone" data-rag-dropzone>
             <span class="nx-rag__dropicon" aria-hidden="true"><?= nexo_icon('upload') ?></span>
             <strong data-rag-file-label>Arrastra un archivo o haz clic para elegirlo</strong>
-            <span>PDF, DOCX, PPTX, TXT, MD, JPG, PNG o WEBP · máx. <?= $maxMb ?> MB</span>
+            <span>PDF, DOCX, PPTX, JPG, PNG o ZIP · máx. <?= $maxMb ?> MB</span>
             <input
                 class="nx-sr-only"
                 type="file"
-                accept=".pdf,.docx,.pptx,.txt,.md,.jpg,.jpeg,.png,.webp"
+                accept=".pdf,.docx,.pptx,.jpg,.jpeg,.png,.zip"
                 data-rag-input
                 <?= $disabled ? 'disabled' : '' ?>
             >

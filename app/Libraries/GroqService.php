@@ -60,6 +60,11 @@ final class GroqService
                     'model' => $model,
                     'error' => $lastError,
                 ]);
+
+                // 400/401/403 fallan igual con el otro modelo: no duplicar la espera.
+                if (in_array($error->getCode(), [400, 401, 403], true)) {
+                    break;
+                }
             }
         }
 
@@ -104,7 +109,7 @@ final class GroqService
 
         if ($status < 200 || $status >= 300) {
             $message = is_array($data) ? (string) ($data['error']['message'] ?? '') : '';
-            throw new RuntimeException('Groq HTTP ' . $status . ($message !== '' ? ': ' . $this->clean($message) : '.'));
+            throw new RuntimeException('Groq HTTP ' . $status . ($message !== '' ? ': ' . $this->clean($message) : '.'), $status);
         }
 
         if (! is_array($data)) {

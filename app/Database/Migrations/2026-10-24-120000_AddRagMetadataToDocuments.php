@@ -17,6 +17,11 @@ class AddRagMetadataToDocuments extends Migration
 {
     public function up(): void
     {
+        // Re-ejecutable si una corrida anterior quedó a medias.
+        if ($this->db->fieldExists('curso_id', 'documents')) {
+            return;
+        }
+
         $this->forge->addColumn('documents', [
             'curso_id' => [
                 'type'       => 'INT',

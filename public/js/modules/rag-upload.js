@@ -3,7 +3,7 @@ import { appUrl, escapeHtml, qs } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { toast } from '../core/toast.js';
 
-const ALLOWED = new Set(['pdf', 'docx', 'pptx', 'txt', 'md', 'jpg', 'jpeg', 'png', 'webp']);
+const ALLOWED = new Set(['pdf', 'docx', 'pptx', 'jpg', 'jpeg', 'png', 'zip']);
 
 function extension(name = '') {
   const parts = String(name).toLowerCase().split('.');
@@ -124,7 +124,7 @@ function validate(file, maxMb) {
 
   const ext = extension(file.name);
   if (!ALLOWED.has(ext)) {
-    return 'Para el tutor usa PDF, DOCX, PPTX, TXT, MD, JPG, PNG o WEBP.';
+    return 'Para el tutor usa PDF, DOCX, PPTX, JPG, PNG o ZIP.';
   }
 
   if (file.size > maxMb * 1024 * 1024) {

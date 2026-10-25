@@ -20,17 +20,18 @@ use Throwable;
  */
 final class DocumentController extends BaseApiController
 {
+    /** Extensión permitida => tipos MIME que `finfo` puede devolver para ella. */
     private const ALLOWED = [
-        'pdf'  => 'PDF',
-        'docx' => 'DOCX',
-        'pptx' => 'PPTX',
-        'txt'  => 'TXT',
-        'md'   => 'MD',
-        'jpg'  => 'JPG',
-        'jpeg' => 'JPG',
-        'png'  => 'PNG',
-        'webp' => 'WEBP',
+        'pdf'  => ['application/pdf'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/x-zip-compressed'],
+        'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip', 'application/x-zip-compressed'],
+        'jpg'  => ['image/jpeg'],
+        'jpeg' => ['image/jpeg'],
+        'png'  => ['image/png'],
+        'zip'  => ['application/zip', 'application/x-zip-compressed'],
     ];
+
+    private const MAX_UPLOADS_PER_MINUTE = 5;
 
     public function index(): ResponseInterface
     {
@@ -44,6 +45,7 @@ final class DocumentController extends BaseApiController
             }
         }
 
+        $userId  = (int) auth()->id();
         $builder = \Config\Database::connect()
             ->table('documents')
             ->select('id, page_id, title, file_path, source_key, mime_type, size_bytes, curso_id, class_date, topic, indexed_v2, indexed_at, error_message, created_at')
@@ -52,6 +54,12 @@ final class DocumentController extends BaseApiController
 
         if ($pageId !== null) {
             $builder->where('page_id', $pageId);
+        } else {
+            // Sin page_id solo lo mío o lo de las páginas de mis espacios.
+            $builder->groupStart()
+                ->where('created_by', $userId)
+                ->orWhere('page_id IN (SELECT p.id FROM pages p JOIN workspace_members m ON m.workspace_id = p.workspace_id WHERE m.user_id = ' . $userId . ' AND p.deleted_at IS NULL)', null, false)
+                ->groupEnd();
         }
 
         $rows = $builder->get()->getResultArray();
@@ -64,6 +72,16 @@ final class DocumentController extends BaseApiController
         $user = auth()->user();
         $file = $this->request->getFile('file');
 
+        $recent = \Config\Database::connect()
+            ->table('documents')
+            ->where('created_by', (int) $user->id)
+            ->where('created_at >=', date('Y-m-d H:i:s', time() - 60))
+            ->countAllResults();
+
+        if ($recent >= self::MAX_UPLOADS_PER_MINUTE) {
+            return $this->error('Subiste muchos archivos seguidos. Espera un minuto e intenta de nuevo.', 429);
+        }
+
         if ($file === null) {
             return $this->error('Adjunta un archivo para indexar.', 422);
         }
@@ -73,7 +91,7 @@ final class DocumentController extends BaseApiController
                 return $this->error('El archivo no llegó completo. Intenta de nuevo.', 422);
             }
         } catch (Throwable $error) {
-            return $this->error('No se pudo leer el archivo: ' . $error->getMessage(), 422);
+            return $this->error('No se pudo leer el archivo.', 422);
         }
 
         $maxMb = max(1, min(100, (int) env('RAG_MAX_UPLOAD_MB', 20)));
@@ -95,7 +113,13 @@ final class DocumentController extends BaseApiController
         }
 
         if (! isset(self::ALLOWED[$ext])) {
-            return $this->error('Formato no permitido. Usa PDF, DOCX, PPTX, TXT, MD, JPG, PNG o WEBP.', 422);
+            return $this->error('Formato no permitido. Usa PDF, DOCX, PPTX, JPG, PNG o ZIP.', 422);
+        }
+
+        $mime = strtolower((string) $file->getMimeType());
+
+        if (! in_array($mime, self::ALLOWED[$ext], true)) {
+            return $this->error('El contenido del archivo no coincide con su extensión .' . $ext . '.', 422);
         }
 
         $pageId = $this->positiveInt($this->request->getPost('page_id'));
@@ -113,14 +137,14 @@ final class DocumentController extends BaseApiController
                     // se indexa igual, sin asociación, en vez de romper el FK.
                     $pageId = null;
                 } else {
-                    $this->assertPageAccess($pageId, (int) $user->id);
+                    $this->assertPageAccess($pageId, (int) $user->id, true);
                 }
             } catch (\RuntimeException $error) {
                 return $this->error($error->getMessage(), 403);
             }
         }
 
-        $cursoId = max(1, (int) ($this->request->getPost('curso_id') ?? 1));
+        $cursoId = max(1, min(999999, (int) ($this->request->getPost('curso_id') ?? 1)));
         $topic   = mb_substr(trim((string) ($this->request->getPost('topic') ?? '')), 0, 255);
         $title   = mb_substr(trim((string) ($this->request->getPost('title') ?? '')), 0, 255);
         $date    = trim((string) ($this->request->getPost('class_date') ?? ''));
@@ -143,7 +167,8 @@ final class DocumentController extends BaseApiController
             return $this->error('No se pudo crear la carpeta de documentos.', 500);
         }
 
-        $stored = $file->getRandomName();
+        // La extensión ya validada, no la que adivina finfo: Python despacha por ella.
+        $stored = bin2hex(random_bytes(10)) . '.' . ($ext === 'jpeg' ? 'jpg' : $ext);
 
         try {
             $file->move($directory, $stored);
@@ -156,26 +181,39 @@ final class DocumentController extends BaseApiController
         $relative = 'writable/uploads/rag/' . $stored;
         $db       = \Config\Database::connect();
 
-        $db->table('documents')->insert([
-            'page_id'      => $pageId,
-            'title'        => $title,
-            'file_path'    => $relative,
-            'source_key'   => $relative,
-            'mime_type'    => $file->getClientMimeType(),
-            'size_bytes'   => $size,
-            'curso_id'     => $cursoId,
-            'class_date'   => $date !== '' ? $date : null,
-            'topic'        => $topic !== '' ? $topic : null,
-            'created_by'   => (int) $user->id,
-            'indexed_v2'   => false,
-            'created_at'   => date('Y-m-d H:i:s'),
-        ]);
+        try {
+            $db->table('documents')->insert([
+                'page_id'      => $pageId,
+                'title'        => $title,
+                'file_path'    => $relative,
+                'source_key'   => $relative,
+                'mime_type'    => mb_substr($mime, 0, 120),
+                'size_bytes'   => $size,
+                'curso_id'     => $cursoId,
+                'class_date'   => $date !== '' ? $date : null,
+                'topic'        => $topic !== '' ? $topic : null,
+                'created_by'   => (int) $user->id,
+                'indexed_v2'   => false,
+                'created_at'   => date('Y-m-d H:i:s'),
+            ]);
 
-        $docId = (int) $db->insertID();
+            $docId = (int) $db->insertID();
+        } catch (Throwable $error) {
+            log_message('error', 'No se pudo registrar el documento RAG: {error}', ['error' => $error->getMessage()]);
+            $docId = 0;
+        }
 
         if ($docId <= 0) {
+            @unlink($directory . '/' . $stored);
+
             return $this->error('No se pudo registrar el documento en la base de datos.', 500);
         }
+
+        // El ingest tarda: soltar el lock de la sesión (FileHandler) para no
+        // bloquear el autosave del editor y no abortar a medias si cierran la pestaña.
+        session_write_close();
+        ignore_user_abort(true);
+        @set_time_limit(240);
 
         try {
             $result = (new RagService())->ingest($docId, $relative, [
@@ -197,7 +235,10 @@ final class DocumentController extends BaseApiController
                 201,
             );
         } catch (Throwable $error) {
-            $message = mb_substr($error->getMessage(), 0, 1000);
+            // RagService ya devuelve un mensaje sin stderr; otros errores no se exponen.
+            $message = $error instanceof \RuntimeException
+                ? mb_substr($error->getMessage(), 0, 300)
+                : 'No se pudo indexar el documento.';
 
             $db->table('documents')->where('id', $docId)->update([
                 'indexed_v2'    => false,
@@ -263,7 +304,7 @@ final class DocumentController extends BaseApiController
         ];
     }
 
-    private function assertPageAccess(int $pageId, int $userId): void
+    private function assertPageAccess(int $pageId, int $userId, bool $write = false): void
     {
         $db   = \Config\Database::connect();
         $page = $db->table('pages')
@@ -277,12 +318,18 @@ final class DocumentController extends BaseApiController
         }
 
         $member = $db->table('workspace_members')
+            ->select('role')
             ->where('workspace_id', (int) $page['workspace_id'])
             ->where('user_id', $userId)
-            ->countAllResults();
+            ->get()
+            ->getRowArray();
 
-        if ($member === 0) {
+        if ($member === null) {
             throw new \RuntimeException('No tienes acceso a esta página.');
+        }
+
+        if ($write && ($member['role'] ?? '') === 'viewer') {
+            throw new \RuntimeException('Tu rol en este espacio es de solo lectura.');
         }
     }
 

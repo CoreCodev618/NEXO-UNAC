@@ -20,10 +20,12 @@ use RuntimeException;
  */
 final class AIChatController extends BaseApiController
 {
+    private const MAX_MESSAGES_PER_MINUTE = 10;
+
     public function send(): ResponseInterface
     {
         $payload = $this->payload();
-        $message = trim((string) ($payload['message'] ?? ''));
+        $message = is_string($payload['message'] ?? null) ? trim($payload['message']) : '';
 
         if ($message === '') {
             return $this->error('Escribe una pregunta para el tutor.', 422);
@@ -39,16 +41,6 @@ final class AIChatController extends BaseApiController
         $sessionId = $this->positiveInt($payload['session_id'] ?? null);
 
         try {
-            $session = $this->resolveSession($sessionId, $userId, $pageId, $message);
-        } catch (RuntimeException $error) {
-            return $this->error($error->getMessage(), 404);
-        } catch (\Throwable $error) {
-            log_message('error', 'No se pudo crear la sesión de chat: {error}', ['error' => $error->getMessage()]);
-
-            return $this->error('No se pudo iniciar la conversación. Revisa la base de datos.', 500);
-        }
-
-        try {
             $pageContext = $pageId !== null ? $this->pageContext($pageId, $userId) : null;
         } catch (RuntimeException $error) {
             return $this->error($error->getMessage(), 403);
@@ -60,12 +52,31 @@ final class AIChatController extends BaseApiController
             $pageContext = null;
         }
 
+        if ($this->recentMessages($userId) >= self::MAX_MESSAGES_PER_MINUTE) {
+            return $this->error('Estás preguntando muy rápido. Espera unos segundos e intenta de nuevo.', 429);
+        }
+
+        try {
+            $session = $this->resolveSession($sessionId, $userId, $pageId, $message);
+        } catch (RuntimeException $error) {
+            // 422 y no 404: el front trata 404 como "tutor no disponible".
+            return $this->error($error->getMessage(), 422);
+        } catch (\Throwable $error) {
+            log_message('error', 'No se pudo crear la sesión de chat: {error}', ['error' => $error->getMessage()]);
+
+            return $this->error('No se pudo iniciar la conversación. Revisa la base de datos.', 500);
+        }
+
+        // Retrieval + Groq pueden tardar decenas de segundos: soltar el lock de la
+        // sesión para no bloquear el resto de llamadas del usuario.
+        session_write_close();
+
         $rag       = new RagService();
         $hits      = [];
         $ragError  = null;
 
         try {
-            $hits = $rag->retrieve($message);
+            $hits = $rag->filterAccessible($rag->retrieve($message), $userId);
         } catch (\Throwable $error) {
             $ragError = $error->getMessage();
             log_message('warning', 'RAG retrieval falló: {error}', ['error' => $ragError]);
@@ -382,6 +393,17 @@ PROMPT;
         } catch (\Throwable $error) {
             log_message('error', 'No se guardó el intercambio de chat: {error}', ['error' => $error->getMessage()]);
         }
+    }
+
+    private function recentMessages(int $userId): int
+    {
+        return \Config\Database::connect()
+            ->table('chat_messages m')
+            ->join('chat_sessions s', 's.id = m.session_id')
+            ->where('s.user_id', $userId)
+            ->where('m.role', 'user')
+            ->where('m.created_at >=', date('Y-m-d H:i:s', time() - 60))
+            ->countAllResults();
     }
 
     private function pageExists(int $pageId): bool
