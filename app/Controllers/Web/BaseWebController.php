@@ -6,6 +6,7 @@ namespace App\Controllers\Web;
 
 use App\Controllers\BaseController;
 use App\Libraries\FrontendDemo;
+use App\Libraries\NexoRepository;
 
 /**
  * Base de los controladores web del frontend.
@@ -76,10 +77,62 @@ abstract class BaseWebController extends BaseController
         ];
     }
 
+    protected function repository(): NexoRepository
+    {
+        return new NexoRepository();
+    }
+
     /**
      * @return array<string, mixed>
      */
     protected function commonData(): array
+    {
+        if ($this->isPreview()) {
+            return $this->previewCommonData();
+        }
+
+        $repo    = $this->repository();
+        $userId  = (int) auth()->id();
+        $workspaces = $repo->workspacesForUser($userId);
+
+        $sidebarWorkspace = $this->currentWorkspace ?? $workspaces[0] ?? null;
+        $sidebarPages     = $sidebarWorkspace !== null
+            ? $repo->pages((int) $sidebarWorkspace['id'])
+            : [];
+
+        $taskCounts = $repo->openTaskCounts($userId);
+        $prefix     = $this->prefix();
+        $currentPath = '/' . trim($this->request->getPath(), '/');
+
+        $topbarTitle = $this->currentPage['title']
+            ?? $this->currentWorkspace['name']
+            ?? 'Mi mesa';
+
+        $eventsAvailable = class_exists('App\\Controllers\\Web\\EventViewController');
+
+        return [
+            'user'              => $this->currentUser(),
+            'workspaces'        => $workspaces,
+            'currentWorkspace'  => $this->currentWorkspace,
+            'currentPage'       => $this->currentPage,
+            'sidebarWorkspace'  => $sidebarWorkspace,
+            'sidebarPages'      => $sidebarPages,
+            'taskCounts'        => $taskCounts,
+            'members'           => $sidebarWorkspace !== null ? $repo->members((int) $sidebarWorkspace['id']) : [],
+            'prefix'            => $prefix,
+            'isPreview'         => false,
+            'currentPath'       => $currentPath,
+            'topbarTitle'       => $topbarTitle,
+            'palette'           => $repo->palette($userId, (int) ($sidebarWorkspace['id'] ?? 0), $prefix),
+            'eventsUrl'         => $eventsAvailable ? nexo_url($prefix, 'events') : null,
+            'pageTitle'         => 'NEXO UNAC',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function previewCommonData(): array
     {
         $workspaces = [];
 

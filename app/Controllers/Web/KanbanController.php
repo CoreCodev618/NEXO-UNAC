@@ -11,15 +11,21 @@ class KanbanController extends BaseWebController
 {
     public function index(string $workspaceId): string
     {
-        $workspace = FrontendDemo::workspace((int) $workspaceId);
+        $id = (int) $workspaceId;
+
+        if ($this->isPreview()) {
+            $workspace = FrontendDemo::workspace($id);
+            $tasks     = FrontendDemo::tasks($id);
+        } else {
+            $workspace = $this->repository()->workspace($id, (int) auth()->id());
+            $tasks     = $workspace !== null ? $this->repository()->tasks($id) : [];
+        }
 
         if ($workspace === null) {
             throw PageNotFoundException::forPageNotFound('No encontramos ese espacio.');
         }
 
         $this->setWorkspace($workspace);
-
-        $tasks = FrontendDemo::tasks((int) $workspace['id']);
 
         return $this->render('kanban/index', [
             'pageTitle'   => 'Tablero · ' . $workspace['name'],

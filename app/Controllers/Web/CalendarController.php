@@ -13,7 +13,13 @@ class CalendarController extends BaseWebController
 {
     public function index(string $workspaceId): string
     {
-        $workspace = FrontendDemo::workspace((int) $workspaceId);
+        if ($this->isPreview()) {
+            $workspace = FrontendDemo::workspace((int) $workspaceId);
+            $tasks     = $workspace !== null ? FrontendDemo::tasks((int) $workspaceId) : [];
+        } else {
+            $workspace = $this->repository()->workspace((int) $workspaceId, (int) auth()->id());
+            $tasks     = $workspace !== null ? $this->repository()->tasks((int) $workspaceId) : [];
+        }
 
         if ($workspace === null) {
             throw PageNotFoundException::forPageNotFound('No encontramos ese espacio.');
@@ -31,7 +37,6 @@ class CalendarController extends BaseWebController
         $start = $first->modify('-' . ((int) $first->format('N') - 1) . ' days');
         $today = (new DateTimeImmutable('today', $timezone))->format('Y-m-d');
 
-        $tasks  = FrontendDemo::tasks((int) $workspace['id']);
         $byDate = [];
 
         foreach ($tasks as $task) {

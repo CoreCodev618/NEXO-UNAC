@@ -72,4 +72,27 @@ abstract class BaseApiController extends Controller
 
         return $decoded;
     }
+
+    /**
+     * Devuelve una respuesta 403 si el usuario no pertenece al workspace.
+     * Devuelve null si tiene acceso.
+     */
+    protected function guardWorkspace(int $workspaceId): ?ResponseInterface
+    {
+        if ($workspaceId <= 0) {
+            return $this->error('workspace_id inválido.', 422, ['workspace_id' => 'Requerido.']);
+        }
+
+        $count = db_connect()
+            ->table('workspace_members')
+            ->where('workspace_id', $workspaceId)
+            ->where('user_id', (int) auth()->id())
+            ->countAllResults();
+
+        if ($count === 0) {
+            return $this->error('No tienes acceso a este espacio.', 403);
+        }
+
+        return null;
+    }
 }
