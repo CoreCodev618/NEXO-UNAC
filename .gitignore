@@ -9,6 +9,7 @@
 !/writable/session/index.html
 /writable/uploads/*
 !/writable/uploads/index.html
+/writable/debugbar/*
 /node_modules/
 /public/build/
 .DS_Store

@@ -75,13 +75,13 @@ function appendUserMessage(text) {
 function appendFallback() {
   const element = appendMessage(
     'assistant',
-    'El tutor todavía no está conectado. No voy a inventar una respuesta ni citar fuentes que no existen.',
+    'El tutor no está conectado en este entorno. No voy a inventar una respuesta ni citar fuentes que no existen.',
   );
 
   const main = qs('.nx-msg__main', element);
   const note = document.createElement('div');
   note.className = 'nx-msg__note';
-  note.innerHTML = `${icon('info')}<span>El endpoint <code>POST /api/v1/chat</code> aún no está implementado en este entorno. Tus páginas y el buscador siguen funcionando.</span>`;
+  note.innerHTML = `${icon('info')}<span>El servicio del tutor no está disponible ahora. Tus páginas y el buscador siguen funcionando.</span>`;
   main?.appendChild(note);
   scrollToEnd();
 }
@@ -120,11 +120,18 @@ function renderSources(data) {
 
   sources.slice(0, 5).forEach((source) => {
     const label = source.title || source.page_title || 'Página del espacio';
+    const detail = [source.location, source.topic].filter(Boolean).join(' · ');
     const href = source.url || (source.page_id ? appUrl(`pages/${source.page_id}`) : null);
     const element = document.createElement(href ? 'a' : 'span');
     element.className = 'nx-msg__citation';
     if (href) element.href = href;
-    element.innerHTML = `${icon('file-text')}<span>${escapeHtml(label)}</span>`;
+    element.innerHTML = `
+      ${icon('file-text')}
+      <span class="nx-msg__citation-main">
+        <strong>${escapeHtml(label)}</strong>
+        ${detail ? `<small>${escapeHtml(detail)}</small>` : ''}
+      </span>
+    `;
     container.appendChild(element);
   });
 
@@ -180,7 +187,8 @@ async function send(message) {
       return;
     }
 
-    const element = appendMessage('assistant', escapeHtml(String(reply)));
+    const safeReply = escapeHtml(String(reply)).replace(/\r?\n/g, '<br>');
+    const element = appendMessage('assistant', safeReply);
     const sources = renderSources(response);
     if (sources) {
       qs('.nx-msg__main', element)?.appendChild(sources);

@@ -1,9 +1,9 @@
 # Progreso IA - NEXO-UNAC
 
 Estado del modulo IA/RAG por fases. Un PR pequeno por hito, probado en terminal antes de abrir PR.
-Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
+Rama de trabajo: `feature/rag-chat`. `main` solo recibe merge aprobado.
 
-> Ultima actualizacion: 2026-10-21 · Rama: `feature/ia-chatbot`
+> Ultima actualizacion: 2026-10-24 · Rama: `feature/rag-chat`
 
 ## Fases
 
@@ -15,7 +15,7 @@ Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
 | IA-3 | Extraccion docx/pptx/pdf + OCR fotos + codigo/zip | ✅ mergeado (PR #6) | `python/` (`extract.py` + `nexo/`) |
 | IA-4 | Chunking 500 tokens con metadata curso/fecha/tema + embeddings | ✅ mergeado (PR #7) | `python/nexo/chunking.py`, `embeddings.py`, `python/chunk.py` |
 | IA-5 | Ingest a Qdrant + retrieval filtrado top-5 | ✅ (en PR) | `python/ingest.py`, `python/retrieve.py`, `python/nexo/vectorstore.py`, `python/tests/test_vectorstore.py`, `test_cli.py`, `test_embeddings.py` |
-| IA-6 | `/api/v1/chat` con `chat_sessions` + citas a material original | ⬜ | |
+| IA-6 | `/api/v1/chat` + `/api/v1/documents` con RAG, citas y memoria | ✅ (en PR) | `AIChatController`, `DocumentController`, `RagService`, `GroqService`, `PythonRunner` |
 | IA-7 | (Opcional) resumen IA de eventos para Tech Radar | ⬜ | |
 
 ## Decisiones cerradas
@@ -35,7 +35,8 @@ Rama de trabajo: `feature/ia-chatbot`. `main` solo recibe merge aprobado.
 - Respuestas API del backend: `{ success, data, message, errors }` (ver `docs/ProgresoBackend.md`).
 - Tablas IA ya migradas por backend: `chat_sessions`, `chat_messages`, `documents`, `document_chunks`.
 - Archivos fisicos: `writable/uploads/...` -> `attachments.file_path` (MySQL solo guarda ruta).
-- Este modulo NO toca migraciones MySQL ni la vista `/events`.
+- A solo agrega metadatos RAG a `documents` (`2026-10-24-120000_AddRagMetadataToDocuments`); el resto de migraciones sigue siendo de B.
+- Este modulo NO toca la vista `/events`.
 
 ## Como verificar (terminal)
 ```bash
@@ -61,3 +62,14 @@ python/.venv/bin/python python/retrieve.py "¿Cómo se define una ruta en CodeIg
 python/.venv/bin/python python/retrieve.py "¿Qué es la programación entera?" \
     --topic "investigación de operaciones" --min-score 0.7 --top 3
 ```
+
+## Verificacion web (A)
+```bash
+php spark migrate --all
+php spark db:seed FacultySeeder
+php spark db:seed WorkspaceSeeder
+php spark serve --host 0.0.0.0 --port 8080
+```
+- `POST /api/v1/chat` recibe `{message, page_id, session_id}` y devuelve `reply`, `sources`, `model`, `degraded`.
+- `POST /api/v1/documents` recibe multipart (`file`, `page_id`, `title`, `topic`, `class_date`, `curso_id`) y ejecuta `python/ingest.py --doc-id` en el momento.
+- Para LAN, ajusta `app.baseURL` en `.env` a la IP del equipo antes de abrir el navegador.
