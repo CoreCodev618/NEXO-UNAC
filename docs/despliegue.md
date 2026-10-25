@@ -62,7 +62,8 @@ Mientras el compose está levantado, la app escucha en todas las interfaces del
 host. Para que el celular o la laptop del profesor entren por LAN:
 
 ```bash
-hostname -I                 # ejemplo: 192.168.1.50
+ip -4 addr show scope global | awk '/inet / {print $2}' | cut -d/ -f1
+# ejemplo: 192.168.1.50
 # abrir http://192.168.1.50:8083/login
 ```
 
